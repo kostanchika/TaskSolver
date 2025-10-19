@@ -1,0 +1,11 @@
+services:
+  tasksolver.api:
+    image: kostnachik/tasksolverapi
+    build:
+      context: .
+      dockerfile: TaskSolver.Api/Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - ASPNETCORE_HTTP_PORTS=5000
+      - ASPNETCORE_ENVIRONMENT=Development
