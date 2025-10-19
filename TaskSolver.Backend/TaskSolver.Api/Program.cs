@@ -1,3 +1,5 @@
+using TaskSolver.Api.Extensions;
+
 namespace TaskSolver.Api;
 
 public class Program
@@ -9,6 +11,8 @@ public class Program
         builder.Services.AddControllers();
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen();
+
+        builder.ConfigureLogger();
 
         var app = builder.Build();
 
