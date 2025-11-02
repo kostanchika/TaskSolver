@@ -1,6 +1,6 @@
 services:
   tasksolver.api:
-    image: kostnachik/tasksolverapi
+    image: kostanchik/tasksolverapi
     build:
       context: .
       dockerfile: TaskSolver.Api/Dockerfile
@@ -9,3 +9,40 @@ services:
     environment:
       - ASPNETCORE_HTTP_PORTS=5000
       - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__Postgres=Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      - Jwt__Key=${JWT_KEY}
+      - Jwt__Issuer=${JWT_ISSUER}
+      - Jwt__Audience=${JWT_AUDIENCE}
+      - Email__Host=${EMAIL_HOST}
+      - Email__Port=${EMAIL_PORT}
+      - Email__Sender=${EMAIL_SENDER}
+      - Email__Name=${EMAIL_NAME}
+      - Email__Login=${EMAIL_LOGIN}
+      - Email__Password=${EMAIL_PASSWORD}
+      - GitHub__ClientId=${GITHUB_CLIENT_ID}
+      - GitHub__ClientSecret=${GITHUB_CLIENT_SECRET}
+      - Google__ClientId=${GOOGLE_CLIENT_ID}
+      - Google__ClientSecret=${GOOGLE_CLIENT_SECRET}
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:latest
+    restart: always
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - "9000:8080"
+
+volumes:
+  pgdata:
