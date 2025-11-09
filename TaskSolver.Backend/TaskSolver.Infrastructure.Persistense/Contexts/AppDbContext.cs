@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using TaskSolver.Core.Domain.Abstractions.Common;
+using TaskSolver.Core.Domain.Profiles;
 using TaskSolver.Core.Domain.Users;
 using TaskSolver.Infrastructure.Persistense.Configurations.Users;
 
@@ -9,6 +10,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     : DbContext(options)
 {
     public DbSet<User> Users => Set<User>();
+
+    public DbSet<Profile> Profiles => Set<Profile>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

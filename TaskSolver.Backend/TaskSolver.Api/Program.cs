@@ -31,6 +31,7 @@ public class Program
         builder.Services.AddSwaggerGen();
 
         builder.ConfigureLogger();
+        builder.Services.AddSwaggerAuth();
         builder.Services.AddHttpClient();
 
         builder.Services.AddProblemDetails();
@@ -98,6 +99,8 @@ public class Program
 
             context.Database.Migrate();
         }
+
+        app.UseStaticFiles("/api/static");
 
         app.UseAuthorization();
 

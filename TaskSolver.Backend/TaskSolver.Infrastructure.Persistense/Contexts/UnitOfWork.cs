@@ -8,7 +8,11 @@ public sealed class UnitOfWork(AppDbContext context) : IUnitOfWork
 {
     private IUserRepository _users = null!;
 
+    private IProfileRepository _profiles = null!;
+
     public IUserRepository Users => _users ??= new UserRepository(context);
+
+    public IProfileRepository Profiles => _profiles ??= new ProfileRepository(context);
 
     public async Task CommitAsync(CancellationToken cancellationToken = default)
     {

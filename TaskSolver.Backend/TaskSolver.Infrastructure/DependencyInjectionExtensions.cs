@@ -2,6 +2,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using TaskSolver.Core.Application.Common.Interfaces;
+using TaskSolver.Core.Application.Profiles.Handlers.Events;
 using TaskSolver.Core.Application.Users.Interfaces;
 using TaskSolver.Infrastructure.Auth;
 using TaskSolver.Infrastructure.Auth.Configurations;
@@ -14,7 +15,11 @@ public static class DependencyInjectionExtensions
     internal static IServiceCollection AddCommonModule(this IServiceCollection services)
     {
         return services
-            .AddTransient<ICodeGenerator, NumericCodeGenerator>();
+            .AddTransient<ICodeGenerator, NumericCodeGenerator>()
+            .AddSingleton<IFileStorage>(_ =>
+            {
+                return new LocalFileStorage("wwwroot");
+            });
     }
 
     internal static IServiceCollection AddAuthModule(this IServiceCollection services, IConfiguration configuration)
