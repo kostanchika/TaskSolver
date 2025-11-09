@@ -68,7 +68,7 @@ public class AuthController(IMediator mediator) : ApiBaseController
         return Ok(result.Value);
     }
 
-    [HttpPatch]
+    [HttpPatch("email")]
     [Authorize]
     public async Task<IActionResult> ChangeEmailAsync(
         [FromBody] ChangeEmailRequest request,
