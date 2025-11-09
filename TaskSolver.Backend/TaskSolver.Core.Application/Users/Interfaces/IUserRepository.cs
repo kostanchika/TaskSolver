@@ -16,4 +16,5 @@ public interface IUserRepository
         string externalId,
         CancellationToken cancellationToken = default);
     Task AddAsync(User user, CancellationToken cancellationToken = default);
+    Task RemoveAsync(User user, CancellationToken cancellationToken = default);
 }

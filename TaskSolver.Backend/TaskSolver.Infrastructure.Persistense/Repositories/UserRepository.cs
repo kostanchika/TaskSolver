@@ -50,4 +50,11 @@ internal sealed class UserRepository(AppDbContext context) : IUserRepository
     {
         await context.Users.AddAsync(user, cancellationToken);
     }
+
+    public Task RemoveAsync(User user, CancellationToken cancellationToken = default)
+    {
+        context.Users.Remove(user);
+
+        return Task.CompletedTask;
+    }
 }

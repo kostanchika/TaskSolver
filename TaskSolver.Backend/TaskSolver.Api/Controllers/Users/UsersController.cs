@@ -7,7 +7,9 @@ using TaskSolver.Api.Controllers.Users.Requests;
 using TaskSolver.Core.Application.Profiles.Commands;
 using TaskSolver.Core.Application.Profiles.DTOs;
 using TaskSolver.Core.Application.Profiles.Queries;
+using TaskSolver.Core.Application.Users.Commands;
 using TaskSolver.Core.Domain.Abstractions.Results;
+using TaskSolver.Core.Domain.Users.Constants;
 
 namespace TaskSolver.Api.Controllers.Users;
 
@@ -110,5 +112,26 @@ public class UsersController(
         }
 
         return Ok();
+    }
+
+    [HttpDelete("me")]
+    [Authorize]
+    public Task DeleteMyAccountAsync(
+        CancellationToken cancellationToken)
+    {
+        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+        return DeleteUserAccountByIdAsync(userId, cancellationToken);
+    }
+
+    [HttpDelete("{id:guid}")]
+    [Authorize(Roles = UserRoles.Administrator)]
+    public async Task DeleteUserAccountByIdAsync(
+        [FromRoute] Guid id,
+        CancellationToken cancellationToken)
+    {
+        await mediator.SendAsync<DeleteUserCommand, Result>(
+            new DeleteUserCommand(id),
+            cancellationToken);
     }
 }
