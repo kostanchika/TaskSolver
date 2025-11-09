@@ -39,7 +39,8 @@ public class Program
 
         builder.Services.AddApplication()
             .AddPersistense(builder.Configuration)
-            .AddInfrastructre(builder.Configuration);
+            .AddInfrastructre(builder.Configuration)
+            .HostEvents();
 
         builder.Services.AddAuthentication(options =>
         {

@@ -4,9 +4,11 @@ using System.Net;
 using TaskSolver.Core.Application.Common.Interfaces;
 using TaskSolver.Core.Application.Profiles.Handlers.Events;
 using TaskSolver.Core.Application.Users.Interfaces;
+using TaskSolver.Core.Domain.Abstractions.Events;
 using TaskSolver.Infrastructure.Auth;
 using TaskSolver.Infrastructure.Auth.Configurations;
 using TaskSolver.Infrastructure.Common;
+using TaskSolver.Infrastructure.Common.Events;
 
 namespace TaskSolver.Infrastructure;
 
@@ -44,10 +46,34 @@ public static class DependencyInjectionExtensions
         return services;
     }
 
+    public static IServiceCollection AddEvents(this IServiceCollection services)
+    {
+        services.AddSingleton<EventQueue>();
+        services.AddSingleton<EventDispatcher>();
+        services.AddTransient<IEventPublisher, EventPublisher>();
+
+        var handlerInterface = typeof(IDomainEventHandler<>);
+
+        var handlers = typeof(UserCreatedHandler).Assembly
+            .GetTypes()
+            .Where(t => !t.IsAbstract && !t.IsInterface)
+            .SelectMany(t => t.GetInterfaces(), (type, iface) => new { type, iface })
+            .Where(x => x.iface.IsGenericType && x.iface.GetGenericTypeDefinition() == handlerInterface)
+            .ToList();
+
+        foreach (var h in handlers)
+        {
+            services.AddTransient(h.iface, h.type);
+        }
+
+        return services;
+    }
+
     public static IServiceCollection AddInfrastructre(this IServiceCollection services, IConfiguration configuration)
     {
         return services
             .AddCommonModule()
+            .AddEvents()
             .AddAuthModule(configuration);
     }
 }

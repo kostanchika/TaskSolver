@@ -7,11 +7,12 @@ using Serilog;
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text.Json;
+using TaskSolver.Api.Hosting;
 using TaskSolver.Core.Application.Common;
 using TaskSolver.Core.Application.Users.Commands;
 using TaskSolver.Core.Application.Users.DTOs;
 using TaskSolver.Core.Domain.Abstractions.Results;
-using TaskSolver.Core.Domain.Users;
+using TaskSolver.Infrastructure.Common.Events;
 
 namespace TaskSolver.Api.Extensions;
 
@@ -206,5 +207,11 @@ public static class DependencyInjectionExtensions
                  },
              };
          });
+    }
+
+    public static IServiceCollection HostEvents(this IServiceCollection services)
+    {
+        return services.AddHostedService(sp =>
+            new BackgroundServiceWrapper(ct => sp.GetRequiredService<EventDispatcher>().StartAsync(ct)));
     }
 }
