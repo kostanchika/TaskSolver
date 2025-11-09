@@ -20,6 +20,9 @@ public sealed class Result
     public static Result Ok() 
         => new(true, null);
 
+    public static Result<T> Ok<T>(T value)
+        => Result<T>.Ok(value);
+
     public static Result Fail(string message, ErrorCode code)
         => new(false, new Error(message, code));
 }
