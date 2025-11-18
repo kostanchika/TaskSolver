@@ -35,7 +35,7 @@ public sealed class LoginViaPasswordHandler(
         var accessToken = tokenGenerator.GenerateAccessToken(user);
         var refreshToken = tokenGenerator.GenerateRefreshToken(user);
 
-        var authResponse = new AuthResponseDto(user.Id, accessToken, refreshToken);
+        var authResponse = new AuthResponseDto(user.Id, accessToken, refreshToken, user.Role);
 
         return Result<AuthResponseDto>.Ok(authResponse);
     }

@@ -51,7 +51,7 @@ public sealed class RegisterViaExternalAccountHandler(
         var accessToken = tokenGenerator.GenerateAccessToken(user);
         var refreshToken = tokenGenerator.GenerateRefreshToken(user);
 
-        var authResponseDto = new AuthResponseDto(user.Id, accessToken, refreshToken);
+        var authResponseDto = new AuthResponseDto(user.Id, accessToken, refreshToken, user.Role);
 
         return Result<AuthResponseDto>.Ok(authResponseDto);
     }

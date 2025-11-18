@@ -110,7 +110,7 @@ public static class DependencyInjectionExtensions
                      }
 
 
-                     var redirectUrl = $"/auth/success?accessToken={authResponseDtoResult.Value.AccessToken}&refreshToken={authResponseDtoResult.Value.RefreshToken}";
+                     var redirectUrl = $"http://localhost:5173/auth/success?accessToken={authResponseDtoResult.Value.AccessToken}&refreshToken={authResponseDtoResult.Value.RefreshToken}&userId={authResponseDtoResult.Value.UserId}&role={authResponseDtoResult.Value.Role}";
                      context.Response.Redirect(redirectUrl);
 
                      context.HandleResponse();
@@ -200,7 +200,7 @@ public static class DependencyInjectionExtensions
                      }
 
 
-                     var redirectUrl = $"/auth/success?accessToken={authResponseDtoResult.Value.AccessToken}&refreshToken={authResponseDtoResult.Value.RefreshToken}";
+                     var redirectUrl = $"http://localhost:5173/auth/success?accessToken={authResponseDtoResult.Value.AccessToken}&refreshToken={authResponseDtoResult.Value.RefreshToken}&userId={authResponseDtoResult.Value.UserId}&role={authResponseDtoResult.Value.Role}";
                      context.Response.Redirect(redirectUrl);
 
                      context.HandleResponse();

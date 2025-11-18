@@ -30,7 +30,8 @@ public sealed class LoginViaExternalAccountHandler(
         var authResponseDto = new AuthResponseDto(
             user.Id,
             accessToken,
-            refreshToken);
+            refreshToken,
+            user.Role);
 
         return Result<AuthResponseDto>.Ok(authResponseDto);
     }
