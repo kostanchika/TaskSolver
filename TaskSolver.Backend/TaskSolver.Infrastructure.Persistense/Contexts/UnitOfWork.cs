@@ -1,7 +1,9 @@
-﻿using TaskSolver.Core.Application.Common;
+﻿using TaskSolver.Core.Application.Comments.Interfaces;
+using TaskSolver.Core.Application.Common;
 using TaskSolver.Core.Application.Common.Interfaces;
 using TaskSolver.Core.Application.Profiles.Interfaces;
 using TaskSolver.Core.Application.ProgrammingLanguages.Interfaces;
+using TaskSolver.Core.Application.Tasks.Interfaces;
 using TaskSolver.Core.Application.Users.Interfaces;
 using TaskSolver.Core.Domain.Abstractions.Common;
 using TaskSolver.Infrastructure.Persistense.Repositories;
@@ -19,11 +21,17 @@ public sealed class UnitOfWork(
 
     private IProgrammingLanguageRepository _programmingLanguages = null!;
 
+    private IProgrammingTaskRepository _programmingTaskRepository = null!;
+    private ICommentRepository _commentRepository = null!;
+
     public IUserRepository Users => _users ??= new UserRepository(context);
 
     public IProfileRepository Profiles => _profiles ??= new ProfileRepository(context);
 
     public IProgrammingLanguageRepository ProgrammingLanguages => _programmingLanguages ??= new ProgrammingLanguageRepository(context);
+
+    public IProgrammingTaskRepository ProgrammingTasks => _programmingTaskRepository ??= new ProgrammingTaskRepository(context);
+    public ICommentRepository Comments => _commentRepository ??= new CommentRepository(context);
 
     public async Task CommitAsync(CancellationToken cancellationToken = default)
     {
