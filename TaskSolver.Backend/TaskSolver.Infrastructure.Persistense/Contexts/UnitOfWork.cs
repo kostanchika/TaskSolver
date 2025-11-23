@@ -1,6 +1,7 @@
 ﻿using TaskSolver.Core.Application.Comments.Interfaces;
 using TaskSolver.Core.Application.Common;
 using TaskSolver.Core.Application.Common.Interfaces;
+using TaskSolver.Core.Application.Marks.Interfaces;
 using TaskSolver.Core.Application.Profiles.Interfaces;
 using TaskSolver.Core.Application.ProgrammingLanguages.Interfaces;
 using TaskSolver.Core.Application.Tasks.Interfaces;
@@ -23,6 +24,7 @@ public sealed class UnitOfWork(
 
     private IProgrammingTaskRepository _programmingTaskRepository = null!;
     private ICommentRepository _commentRepository = null!;
+    private IMarkRepository _markRepository = null!;
 
     public IUserRepository Users => _users ??= new UserRepository(context);
 
@@ -32,6 +34,7 @@ public sealed class UnitOfWork(
 
     public IProgrammingTaskRepository ProgrammingTasks => _programmingTaskRepository ??= new ProgrammingTaskRepository(context);
     public ICommentRepository Comments => _commentRepository ??= new CommentRepository(context);
+    public IMarkRepository Marks => _markRepository ??= new MarkRepository(context);
 
     public async Task CommitAsync(CancellationToken cancellationToken = default)
     {

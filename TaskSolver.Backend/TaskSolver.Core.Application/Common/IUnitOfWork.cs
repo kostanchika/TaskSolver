@@ -1,4 +1,5 @@
 ﻿using TaskSolver.Core.Application.Comments.Interfaces;
+using TaskSolver.Core.Application.Marks.Interfaces;
 using TaskSolver.Core.Application.Profiles.Interfaces;
 using TaskSolver.Core.Application.ProgrammingLanguages.Interfaces;
 using TaskSolver.Core.Application.Tasks.Interfaces;
@@ -13,6 +14,7 @@ public interface IUnitOfWork
     IProgrammingLanguageRepository ProgrammingLanguages { get; }
     IProgrammingTaskRepository ProgrammingTasks { get; }
     ICommentRepository Comments { get; }
+    IMarkRepository Marks { get; }
 
     Task CommitAsync(CancellationToken cancellationToken = default);
 }

@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using TaskSolver.Core.Domain.Abstractions.Common;
 using TaskSolver.Core.Domain.Comments;
+using TaskSolver.Core.Domain.Marks;
 using TaskSolver.Core.Domain.Profiles;
 using TaskSolver.Core.Domain.ProgrammingLanguages;
 using TaskSolver.Core.Domain.Tasks;
@@ -20,6 +21,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<ProgrammingTask> ProgrammingTasks => Set<ProgrammingTask>();
     public DbSet<Comment> Comments => Set<Comment>();
+    public DbSet<Mark> Marks => Set<Mark>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
