@@ -7,5 +7,7 @@ public sealed record CreateProgrammingLanguageCommand(
     string Name,
     string Version,
     string? Extra,
-    UploadedFile Icon)
+    UploadedFile Icon,
+    string FileExtension,
+    string Interpretor)
     : IRequest<Guid>;

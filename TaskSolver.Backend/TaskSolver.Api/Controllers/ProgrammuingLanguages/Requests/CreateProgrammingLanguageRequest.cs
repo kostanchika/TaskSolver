@@ -7,8 +7,10 @@ public sealed record CreateProgrammingLanguageRequest(
     string Name,
     string Version,
     string? Extra,
-    IFormFile Icon)
+    IFormFile Icon,
+    string FileExtension,
+    string Interpretor)
 {
     public CreateProgrammingLanguageCommand ToCommand()
-        => new(Name, Version, Extra, Icon.ToUploadedFile());
+        => new(Name, Version, Extra, Icon.ToUploadedFile(), FileExtension, Interpretor);
 }

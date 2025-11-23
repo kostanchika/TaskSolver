@@ -19,7 +19,9 @@ public sealed class CreateProgrammingLanguageHandler(
             request.Name,
             request.Version,
             request.Extra,
-            iconUrl);
+            iconUrl,
+            request.FileExtension,
+            request.Interpretor);
 
         await unitOfWork.ProgrammingLanguages.AddAsync(programmingLanguage, cancellationToken);
         await unitOfWork.CommitAsync(cancellationToken);

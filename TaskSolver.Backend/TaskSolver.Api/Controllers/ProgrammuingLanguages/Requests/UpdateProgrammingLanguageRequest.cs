@@ -7,9 +7,11 @@ public sealed record UpdateProgrammingLanguageRequest(
     string Name,
     string Version,
     string? Extra,
-    IFormFile? Icon)
+    IFormFile? Icon,
+    string Interpretor,
+    string FileExtension)
 {
     public UpdateProgrammingLanguageCommand ToCommand(Guid id)
-        => new(id, Name, Version, Extra, Icon?.ToUploadedFile());
+        => new(id, Name, Version, Extra, Icon?.ToUploadedFile(), FileExtension, Interpretor);
 }
 

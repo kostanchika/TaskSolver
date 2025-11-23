@@ -17,6 +17,7 @@ using TaskSolver.Core.Domain.Users;
 using TaskSolver.Infrastructure;
 using TaskSolver.Infrastructure.Persistense;
 using TaskSolver.Infrastructure.Persistense.Contexts;
+using TaskSolver.Infrastructure.Solutions.Hubs;
 
 namespace TaskSolver.Api;
 
@@ -47,7 +48,24 @@ public class Program
             options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
             options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
         })
-        .AddJwtBearer(options =>
+        .AddJwtBearer(options => {
+            options.Events = new JwtBearerEvents
+            {
+                OnMessageReceived = context =>
+                {
+                    var accessToken = context.Request.Query["access_token"];
+
+                    var path = context.HttpContext.Request.Path;
+                    if (!string.IsNullOrEmpty(accessToken) &&
+                        path.StartsWithSegments("/solutionsHub"))
+                    {
+                        context.Token = accessToken;
+                    }
+
+                    return Task.CompletedTask;
+                }
+            };
+
             options.TokenValidationParameters = new TokenValidationParameters
             {
                 ValidateIssuer = true,
@@ -66,6 +84,8 @@ public class Program
 
         var app = builder.Build();
 
+        app.UseWebSockets();
+        
         app.UseExceptionHandler(errorApp =>
         {
             errorApp.Run(async context =>
@@ -106,6 +126,8 @@ public class Program
         app.UseAuthorization();
 
         app.MapControllers();
+
+        app.MapHub<SolutionHub>("/solutionsHub");
 
         app.Run();
     }

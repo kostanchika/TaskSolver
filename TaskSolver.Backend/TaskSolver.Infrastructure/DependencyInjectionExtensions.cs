@@ -3,12 +3,14 @@ using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using TaskSolver.Core.Application.Common.Interfaces;
 using TaskSolver.Core.Application.Profiles.Handlers.Events;
+using TaskSolver.Core.Application.Solutions.Interfaces;
 using TaskSolver.Core.Application.Users.Interfaces;
 using TaskSolver.Core.Domain.Abstractions.Events;
 using TaskSolver.Infrastructure.Auth;
 using TaskSolver.Infrastructure.Auth.Configurations;
 using TaskSolver.Infrastructure.Common;
 using TaskSolver.Infrastructure.Common.Events;
+using TaskSolver.Infrastructure.Solutions;
 
 namespace TaskSolver.Infrastructure;
 
@@ -22,6 +24,13 @@ public static class DependencyInjectionExtensions
             {
                 return new LocalFileStorage("wwwroot");
             });
+    }
+
+    internal static IServiceCollection AddSignalRModule(this IServiceCollection services)
+    {
+        services.AddSignalR();
+
+        return services;
     }
 
     internal static IServiceCollection AddAuthModule(this IServiceCollection services, IConfiguration configuration)
@@ -46,6 +55,11 @@ public static class DependencyInjectionExtensions
         return services;
     }
 
+    internal static IServiceCollection AddSolutionsModule(this IServiceCollection services)
+    {
+        return services
+            .AddSingleton<ISolutionNotificator, SignalRSolutionNotificator>();
+    }
     public static IServiceCollection AddEvents(this IServiceCollection services)
     {
         services.AddSingleton<EventQueue>();
@@ -73,7 +87,9 @@ public static class DependencyInjectionExtensions
     {
         return services
             .AddCommonModule()
+            .AddSignalRModule()
             .AddEvents()
-            .AddAuthModule(configuration);
+            .AddAuthModule(configuration)
+            .AddSolutionsModule();
     }
 }

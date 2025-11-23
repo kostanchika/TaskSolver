@@ -9,5 +9,7 @@ public sealed record UpdateProgrammingLanguageCommand(
     string Name,
     string Version,
     string? Extra,
-    UploadedFile? Icon)
+    UploadedFile? Icon,
+    string FileExtension,
+    string Interpretor)
     : IRequest<Result>;

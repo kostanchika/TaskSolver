@@ -25,6 +25,7 @@ public sealed class UpdateProgrammingTaskHandler(
         programmingTask.Output = request.Output;
         programmingTask.Examples = [.. request.Examples.Select(e => e.ToEntity())];
         programmingTask.Tests = [.. request.Tests.Select(t => t.ToEntity())];
+        programmingTask.Hints = [.. request.Hints]; 
 
         await unitOfWork.CommitAsync(cancellationToken);
 

@@ -4,6 +4,7 @@ using TaskSolver.Core.Application.Common.Interfaces;
 using TaskSolver.Core.Application.Marks.Interfaces;
 using TaskSolver.Core.Application.Profiles.Interfaces;
 using TaskSolver.Core.Application.ProgrammingLanguages.Interfaces;
+using TaskSolver.Core.Application.Solutions.Interfaces;
 using TaskSolver.Core.Application.Tasks.Interfaces;
 using TaskSolver.Core.Application.Users.Interfaces;
 using TaskSolver.Core.Domain.Abstractions.Common;
@@ -25,6 +26,7 @@ public sealed class UnitOfWork(
     private IProgrammingTaskRepository _programmingTaskRepository = null!;
     private ICommentRepository _commentRepository = null!;
     private IMarkRepository _markRepository = null!;
+    private ISolutionRepository _solutionRepository = null!;
 
     public IUserRepository Users => _users ??= new UserRepository(context);
 
@@ -35,6 +37,7 @@ public sealed class UnitOfWork(
     public IProgrammingTaskRepository ProgrammingTasks => _programmingTaskRepository ??= new ProgrammingTaskRepository(context);
     public ICommentRepository Comments => _commentRepository ??= new CommentRepository(context);
     public IMarkRepository Marks => _markRepository ??= new MarkRepository(context);
+    public ISolutionRepository Solutions => _solutionRepository ??= new SolutionRepository(context);
 
     public async Task CommitAsync(CancellationToken cancellationToken = default)
     {

@@ -22,5 +22,11 @@ public sealed class ProgrammingLanguageConfiguration : IEntityTypeConfiguration<
 
         builder.Property(l => l.IconUrl)
             .IsRequired();
+
+        builder.Property(l => l.FileExtension)
+            .IsRequired();
+
+        builder.Property(l => l.Interpretor)
+            .IsRequired();
     }
 }

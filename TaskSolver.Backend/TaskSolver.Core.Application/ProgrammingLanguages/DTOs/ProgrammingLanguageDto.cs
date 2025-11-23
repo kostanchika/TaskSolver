@@ -7,7 +7,9 @@ public sealed record ProgrammingLanguageDto(
     string Name,
     string Version,
     string? Extra,
-    string IconUrl)
+    string IconUrl,
+    string FileExtensions,
+    string Interpretor)
 {
     public static ProgrammingLanguageDto FromEntity(ProgrammingLanguage programmingLanguage)
         => new(
@@ -15,5 +17,7 @@ public sealed record ProgrammingLanguageDto(
             programmingLanguage.Name,
             programmingLanguage.Version,
             programmingLanguage.Extra,
-            programmingLanguage.IconUrl);
+            programmingLanguage.IconUrl,
+            programmingLanguage.FileExtension,
+            programmingLanguage.Interpretor);
 }

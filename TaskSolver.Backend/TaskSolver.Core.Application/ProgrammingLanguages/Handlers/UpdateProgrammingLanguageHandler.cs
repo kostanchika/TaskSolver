@@ -29,6 +29,8 @@ public sealed class UpdateProgrammingLanguageHandler(
         programmingLanguage.Version = request.Version;
         programmingLanguage.Extra = request.Extra;
         programmingLanguage.IconUrl = iconUrl;
+        programmingLanguage.FileExtension = request.FileExtension;
+        programmingLanguage.Interpretor = request.Interpretor;
 
         await unitOfWork.CommitAsync(cancellationToken);
 
