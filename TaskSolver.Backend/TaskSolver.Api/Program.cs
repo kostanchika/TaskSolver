@@ -76,8 +76,8 @@ public class Program
                 ValidAudience = builder.Configuration["Jwt:Audience"],
                 IssuerSigningKey = new SymmetricSecurityKey(
                     Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
-            }
-        )
+            };
+        })
         .AddCookie()
         .AddGithubOAuth(builder.Configuration)
         .AddGoogleOAuth(builder.Configuration);
@@ -86,6 +86,14 @@ public class Program
 
         app.UseWebSockets();
         
+        app.UseCors(options =>
+        {
+            options.WithOrigins(["http://localhost:5173"]);
+            options.AllowAnyHeader();
+            options.AllowAnyMethod();
+            options.AllowCredentials();
+        });
+
         app.UseExceptionHandler(errorApp =>
         {
             errorApp.Run(async context =>

@@ -7,7 +7,7 @@ namespace TaskSolver.Core.Application.ProgrammingTasks.Commands;
 public sealed record CreateProgrammingTaskCommand(
     string Name,
     string Description,
-    TaskDegree Degree,
+    Sigil Degree,
     IEnumerable<string> Keywords,
     IEnumerable<TaskInputDto> Input,
     string Output,

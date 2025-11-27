@@ -3,6 +3,7 @@ using TaskSolver.Core.Application.Marks.Interfaces;
 using TaskSolver.Core.Application.Profiles.Interfaces;
 using TaskSolver.Core.Application.ProgrammingLanguages.Interfaces;
 using TaskSolver.Core.Application.Solutions.Interfaces;
+using TaskSolver.Core.Application.Statistics;
 using TaskSolver.Core.Application.Tasks.Interfaces;
 using TaskSolver.Core.Application.Users.Interfaces;
 
@@ -17,6 +18,7 @@ public interface IUnitOfWork
     ICommentRepository Comments { get; }
     IMarkRepository Marks { get; }
     ISolutionRepository Solutions { get; }
+    IStatisticsRepository UserStatistics { get; }
 
     Task CommitAsync(CancellationToken cancellationToken = default);
 }

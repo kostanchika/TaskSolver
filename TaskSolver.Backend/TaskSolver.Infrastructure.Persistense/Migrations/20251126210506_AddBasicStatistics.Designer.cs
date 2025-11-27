@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TaskSolver.Infrastructure.Persistense.Contexts;
@@ -12,9 +13,11 @@ using TaskSolver.Infrastructure.Persistense.Contexts;
 namespace TaskSolver.Infrastructure.Persistense.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251126210506_AddBasicStatistics")]
+    partial class AddBasicStatistics
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -308,13 +311,7 @@ namespace TaskSolver.Infrastructure.Persistense.Migrations
                     b.Property<int>("TotalSolutions")
                         .HasColumnType("integer");
 
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
                     b.HasKey("Id");
-
-                    b.HasIndex("UserId")
-                        .IsUnique();
 
                     b.ToTable("UserStatistics");
                 });
@@ -571,17 +568,6 @@ namespace TaskSolver.Infrastructure.Persistense.Migrations
                         .WithMany("TaskHistory")
                         .HasForeignKey("UserStatisticsId")
                         .OnDelete(DeleteBehavior.Cascade);
-                });
-
-            modelBuilder.Entity("TaskSolver.Core.Domain.Statistics.UserStatistics", b =>
-                {
-                    b.HasOne("TaskSolver.Core.Domain.Users.User", "User")
-                        .WithOne()
-                        .HasForeignKey("TaskSolver.Core.Domain.Statistics.UserStatistics", "UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("TaskSolver.Core.Domain.Tasks.TaskExample", b =>

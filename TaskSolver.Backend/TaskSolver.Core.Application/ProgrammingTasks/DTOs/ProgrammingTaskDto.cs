@@ -7,7 +7,7 @@ public sealed record ProgrammingTaskDto(
     Guid Id,
     string Name,
     string Description,
-    TaskDegree Degree,
+    Sigil Degree,
     IEnumerable<string> Keywords,
     IEnumerable<TaskInputDto> Input,
     string Output,

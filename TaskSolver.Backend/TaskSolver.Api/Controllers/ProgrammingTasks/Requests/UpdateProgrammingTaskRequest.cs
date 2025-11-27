@@ -7,7 +7,7 @@ namespace TaskSolver.Api.Controllers.ProgrammingTasks.Requests;
 public sealed record UpdateProgrammingTaskRequest(
     string Name,
     string Description,
-    TaskDegree Degree,
+    Sigil Degree,
     IEnumerable<string> Keywords,
     IEnumerable<TaskInputDto> Input,
     string Output,

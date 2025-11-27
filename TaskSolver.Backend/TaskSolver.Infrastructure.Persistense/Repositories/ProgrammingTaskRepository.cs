@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using TaskSolver.Core.Application.Tasks.Interfaces;
 using TaskSolver.Core.Domain.Tasks;
+using TaskSolver.Core.Domain.Tasks.Enums;
 using TaskSolver.Infrastructure.Persistense.Contexts;
 
 namespace TaskSolver.Infrastructure.Persistense.Repositories;
@@ -24,6 +25,16 @@ public sealed class ProgrammingTaskRepository(AppDbContext context)
             .Include(t => t.Input)
             .Include(t => t.Examples)
             .Include(t => t.Tests)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ProgrammingTask>> GetAllBySigilAsync(Sigil sigil, CancellationToken cancellationToken = default)
+    {
+        return await context.ProgrammingTasks
+            .Include(t => t.Input)
+            .Include(t => t.Examples)
+            .Include(t => t.Tests)
+            .Where(t => t.Degree == sigil || t.Degree - 1 == sigil || t.Degree + 1 == sigil)
             .ToListAsync(cancellationToken);
     }
 

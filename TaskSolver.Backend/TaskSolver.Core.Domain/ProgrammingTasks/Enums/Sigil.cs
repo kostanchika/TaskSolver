@@ -1,6 +1,6 @@
 ﻿namespace TaskSolver.Core.Domain.Tasks.Enums;
 
-public enum TaskDegree
+public enum Sigil
 {
     Zero  = 0,
     One   = 1,

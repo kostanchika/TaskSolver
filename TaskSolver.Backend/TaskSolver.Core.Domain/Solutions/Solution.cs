@@ -1,4 +1,5 @@
 ﻿using TaskSolver.Core.Domain.Abstractions.Common;
+using TaskSolver.Core.Domain.Solutions.Events;
 
 namespace TaskSolver.Core.Domain.Solutions;
 
@@ -38,5 +39,12 @@ public sealed class Solution : AggregateRoot
     {
         Results = [.. testResults];
         CompletedAt = DateTime.UtcNow;
+
+        bool isCorrect = testResults.All(r => r.IsSovled);
+
+        AddDomainEvent(new TaskSolvedEvent(
+            UserId,
+            TaskId,
+            isCorrect));
     }
 }

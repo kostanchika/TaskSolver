@@ -9,7 +9,7 @@ public sealed class ProgrammingTask : AggregateRoot
     public string Name { get; set; }
     public string Description { get; set; }
 
-    public TaskDegree Degree { get; set; }
+    public Sigil Degree { get; set; }
     public List<string> Keywords { get; set; }
 
     public List<TaskInput> Input { get; set; }
@@ -35,7 +35,7 @@ public sealed class ProgrammingTask : AggregateRoot
     public ProgrammingTask(
         string name,
         string description,
-        TaskDegree degree,
+        Sigil degree,
         IEnumerable<string> keywords,
         IEnumerable<TaskInput> input,
         string output,
