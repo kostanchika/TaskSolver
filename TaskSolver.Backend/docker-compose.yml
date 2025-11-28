@@ -23,6 +23,7 @@ services:
       - GitHub__ClientSecret=${GITHUB_CLIENT_SECRET}
       - Google__ClientId=${GOOGLE_CLIENT_ID}
       - Google__ClientSecret=${GOOGLE_CLIENT_SECRET}
+      - Mistral__ApiKey=${MISTRAL_API_KEY}
     depends_on:
       - postgres
 

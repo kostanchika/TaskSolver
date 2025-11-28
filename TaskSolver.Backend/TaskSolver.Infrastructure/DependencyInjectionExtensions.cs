@@ -2,6 +2,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using TaskSolver.Core.Application.Common.Interfaces;
+using TaskSolver.Core.Application.Consulting.Interfaces;
 using TaskSolver.Core.Application.Profiles.Handlers.Events;
 using TaskSolver.Core.Application.Solutions.Interfaces;
 using TaskSolver.Core.Application.Users.Interfaces;
@@ -10,6 +11,7 @@ using TaskSolver.Infrastructure.Auth;
 using TaskSolver.Infrastructure.Auth.Configurations;
 using TaskSolver.Infrastructure.Common;
 using TaskSolver.Infrastructure.Common.Events;
+using TaskSolver.Infrastructure.Consulting;
 using TaskSolver.Infrastructure.Solutions;
 
 namespace TaskSolver.Infrastructure;
@@ -60,6 +62,13 @@ public static class DependencyInjectionExtensions
         return services
             .AddSingleton<ISolutionNotificator, SignalRSolutionNotificator>();
     }
+
+    internal static IServiceCollection AddConsultingModule(this IServiceCollection services)
+    {
+        return services
+            .AddTransient<ITaskConsultant, MistralTaskConsultant>();
+    }
+
     public static IServiceCollection AddEvents(this IServiceCollection services)
     {
         services.AddSingleton<EventQueue>();
@@ -90,6 +99,7 @@ public static class DependencyInjectionExtensions
             .AddSignalRModule()
             .AddEvents()
             .AddAuthModule(configuration)
-            .AddSolutionsModule();
+            .AddSolutionsModule()
+            .AddConsultingModule();
     }
 }

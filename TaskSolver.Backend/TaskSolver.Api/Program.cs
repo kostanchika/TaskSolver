@@ -1,19 +1,12 @@
-﻿using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authentication.OAuth;
+﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using System.Net.Http.Headers;
-using System.Security.Claims;
 using System.Text;
-using System.Text.Json;
 using TaskSolver.Api.Exceptions;
 using TaskSolver.Api.Extensions;
 using TaskSolver.Core.Application;
-using TaskSolver.Core.Domain.Users;
 using TaskSolver.Infrastructure;
 using TaskSolver.Infrastructure.Persistense;
 using TaskSolver.Infrastructure.Persistense.Contexts;
@@ -33,7 +26,8 @@ public class Program
 
         builder.ConfigureLogger();
         builder.Services.AddSwaggerAuth();
-        builder.Services.AddHttpClient();
+        builder.Services.AddHttpClient()
+            .AddMistralHttpClient(builder.Configuration);
 
         builder.Services.AddProblemDetails();
         builder.Services.AddExceptionHandler<GlobalExceptionHandler>();

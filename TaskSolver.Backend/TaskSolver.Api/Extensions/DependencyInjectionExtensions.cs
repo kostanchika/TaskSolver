@@ -9,10 +9,12 @@ using System.Security.Claims;
 using System.Text.Json;
 using TaskSolver.Api.Hosting;
 using TaskSolver.Core.Application.Common;
+using TaskSolver.Core.Application.Consulting.Interfaces;
 using TaskSolver.Core.Application.Users.Commands;
 using TaskSolver.Core.Application.Users.DTOs;
 using TaskSolver.Core.Domain.Abstractions.Results;
 using TaskSolver.Infrastructure.Common.Events;
+using TaskSolver.Infrastructure.Consulting;
 
 namespace TaskSolver.Api.Extensions;
 
@@ -213,5 +215,20 @@ public static class DependencyInjectionExtensions
     {
         return services.AddHostedService(sp =>
             new BackgroundServiceWrapper(ct => sp.GetRequiredService<EventDispatcher>().StartAsync(ct)));
+    }
+
+    public static IServiceCollection AddMistralHttpClient(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddHttpClient("mistral", client =>
+        {
+            client.BaseAddress = new Uri("https://api.mistral.ai/");
+            client.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", configuration["Mistral:ApiKey"]);
+            client.DefaultRequestHeaders.Accept.Add(
+                new MediaTypeWithQualityHeaderValue("application/json"));
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
+
+        return services;
     }
 }
