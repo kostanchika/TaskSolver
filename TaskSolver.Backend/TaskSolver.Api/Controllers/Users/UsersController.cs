@@ -18,6 +18,21 @@ namespace TaskSolver.Api.Controllers.Users;
 public class UsersController(
     IMediator mediator) : ApiBaseController
 {
+    [HttpGet]
+    [Authorize(Roles = UserRoles.Administrator)]
+    public async Task<PagedResult<AdminProfileDto>> GetAllProfilesAsync(
+        [FromQuery] GetProfilesRequest request,
+        CancellationToken cancellationToken)
+    {
+        var query = request.ToQuery();
+
+        var pagedResult = await mediator.SendAsync<GetProfilesQuery, PagedResult<AdminProfileDto>> (
+            query,
+            cancellationToken);
+
+        return pagedResult;
+    }
+
     [HttpGet("me")]
     [Authorize]
     public async Task<ActionResult<ProfileDto>> GetMyProfileAsync(
@@ -75,6 +90,25 @@ public class UsersController(
         return Ok();
     }
 
+    [HttpPut("{id:guid}")]
+    [Authorize(Roles = UserRoles.Administrator)]
+    public async Task<IActionResult> UpdateUserProfileAsync(
+        [FromRoute] Guid id,
+        [FromBody] UpdateProfileRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await mediator.SendAsync<UpdateProfileCommand, Result>(
+            request.ToCommand(id),
+            cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            return HandleFailure(result);
+        }
+
+        return Ok();
+    }
+
     [HttpPatch("me/avatar")]
     [Authorize]
     public async Task<IActionResult> UpdateMyAvatarAsync(
@@ -95,6 +129,25 @@ public class UsersController(
         return Ok();
     }
 
+    [HttpPatch("{id:guid}/avatar")]
+    [Authorize(Roles = UserRoles.Administrator)]
+    public async Task<IActionResult> UpdateUserAvatarAsync(
+        [FromRoute] Guid id,
+        [FromForm] UpdateAvatarRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await mediator.SendAsync<UpdateAvatarCommand, Result>(
+            request.ToCommand(id),
+            cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            return HandleFailure(result);
+        }
+
+        return Ok();
+    }
+
     [HttpDelete("me/avatar")]
     [Authorize]
     public async Task<IActionResult> DeleteMyAvatarAsync(
@@ -104,6 +157,24 @@ public class UsersController(
 
         var result = await mediator.SendAsync<DeleteAvatarCommand, Result>(
             new DeleteAvatarCommand(userId),
+            cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            return HandleFailure(result);
+        }
+
+        return Ok();
+    }
+
+    [HttpDelete("{id:guid}/avatar")]
+    [Authorize(Roles = UserRoles.Administrator)]
+    public async Task<IActionResult> DeleteUserAvatarAsync(
+        [FromRoute] Guid id,
+        CancellationToken cancellationToken)
+    {
+        var result = await mediator.SendAsync<DeleteAvatarCommand, Result>(
+            new DeleteAvatarCommand(id),
             cancellationToken);
 
         if (!result.IsSuccess)
