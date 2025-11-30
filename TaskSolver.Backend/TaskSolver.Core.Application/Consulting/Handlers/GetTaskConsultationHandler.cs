@@ -24,6 +24,8 @@ public sealed class GetTaskConsultationHandler(
             return Result<ConsultMessage>.Fail("Задача не найдена", ErrorCode.NotFound);
         }
 
+        _context.TryAdd(request.UserId, []);
+
         if (request.Question is null) _context[request.UserId] = [];
 
         var answer = request.Question is null
@@ -33,8 +35,6 @@ public sealed class GetTaskConsultationHandler(
                 request.Question,
                 _context[request.UserId],
                 cancellationToken);
-
-        _context.TryAdd(request.UserId, []);
 
         _context[request.UserId].Add(request.Question ?? "Опиши задачу");
         _context[request.UserId].Add(answer);

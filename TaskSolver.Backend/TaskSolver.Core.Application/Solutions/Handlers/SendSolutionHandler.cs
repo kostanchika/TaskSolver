@@ -26,9 +26,6 @@ public sealed class SendSolutionHandler(
 
         await solutionNotificator.NotifiySolutionCompleted(request.UserId, solution.Id, cancellationToken);
 
-        // Long-Task
-        await Task.Delay(5000, cancellationToken);
-
         var task = await unitOfWork.ProgrammingTasks.GetByIdAsync(
             request.TaskId,
             cancellationToken);
@@ -54,6 +51,7 @@ public sealed class SendSolutionHandler(
             try
             {
                 using var httpClient = new HttpClient();
+                httpClient.Timeout = TimeSpan.FromSeconds(10);
 
                 var response = await httpClient.PostAsJsonAsync("http://host.docker.internal:5100/run",
                     payload,
@@ -76,9 +74,9 @@ public sealed class SendSolutionHandler(
 
         solution.Complete(results);
 
-        await unitOfWork.CommitAsync(cancellationToken);
+        await unitOfWork.CommitAsync(CancellationToken.None);
 
-        await solutionNotificator.NotifiySolutionCompleted(request.UserId, solution.Id, cancellationToken);
+        await solutionNotificator.NotifiySolutionCompleted(request.UserId, solution.Id, CancellationToken.None);
 
         return solution.Id;
     }

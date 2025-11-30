@@ -28,10 +28,7 @@ public sealed class MistralTaskConsultant(IHttpClientFactory factory) : ITaskCon
 
     private static string BuildDescriptionPrompt(ProgrammingTask task)
     {
-        var taskJson = JsonSerializer.Serialize(task, new JsonSerializerOptions
-        {
-            WriteIndented = true
-        });
+        var taskJson = JsonSerializer.Serialize(task, _jsonOptions);
 
         return $"""
         ### Задача
