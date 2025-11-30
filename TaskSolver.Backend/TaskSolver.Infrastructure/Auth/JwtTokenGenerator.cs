@@ -4,6 +4,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using TaskSolver.Core.Application.Users.Interfaces;
+using TaskSolver.Core.Domain.Abstractions.Results;
 using TaskSolver.Core.Domain.Users;
 using TaskSolver.Infrastructure.Auth.Configurations;
 
@@ -52,5 +53,46 @@ public sealed class JwtTokenGenerator(IOptions<JwtConfiguration> jwtConfiguratio
             signingCredentials: creds);
 
         return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    public Result<Guid> GetUserIdFromRefreshToken(string token)
+    {
+        var tokenHandler = new JwtSecurityTokenHandler();
+        var key = Encoding.UTF8.GetBytes(_jwtConfiguration.Key);
+
+        try
+        {
+            var principal = tokenHandler.ValidateToken(token, new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidIssuer = _jwtConfiguration.Issuer,
+                ValidateAudience = true,
+                ValidAudience = _jwtConfiguration.Audience,
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(key),
+                ValidateLifetime = true,
+                ClockSkew = TimeSpan.Zero
+            }, out SecurityToken validatedToken);
+
+            var typeClaim = principal.Claims.FirstOrDefault(c => c.Type == "type");
+            if (typeClaim?.Value != "refresh")
+            {
+                return Result<Guid>.Fail("Неверный тип токена", ErrorCode.BadRequest);
+            }
+
+            var subClaim = principal.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier);
+            if (subClaim is null || !Guid.TryParse(subClaim.Value, out var userId))
+            {
+                return Result<Guid>.Fail("Не удалось извлечь идентификатор пользователя", ErrorCode.BadRequest);
+            }
+
+            return Result.Ok(userId);
+        }
+        catch (Exception ex)
+        {
+            return Result<Guid>.Fail($"Ошибка валидации токена: {ex.Message}", ErrorCode.Unauthorized);
+        }
+
+
     }
 }

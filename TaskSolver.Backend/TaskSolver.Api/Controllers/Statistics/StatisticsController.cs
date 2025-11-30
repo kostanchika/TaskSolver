@@ -2,11 +2,13 @@
 using Microsoft.AspNetCore.Mvc;
 using MitMediator;
 using System.Security.Claims;
+using System.Text;
 using TaskSolver.Api.Common;
 using TaskSolver.Core.Application.ProgrammingTasks.DTOs;
 using TaskSolver.Core.Application.Statistics.DTOs;
 using TaskSolver.Core.Application.Statistics.Queries;
 using TaskSolver.Core.Domain.Abstractions.Results;
+using TaskSolver.Core.Domain.Users.Constants;
 
 namespace TaskSolver.Api.Controllers.Statistics;
 
@@ -86,5 +88,53 @@ public sealed class StatisticsController(IMediator mediator)
         }
 
         return result.Value;
+    }
+
+    [HttpGet("admin")]
+    [Authorize(Roles = UserRoles.Administrator)]
+    public async Task<SolveStatisticsDto> GetSolveStatisticsAsync(
+        CancellationToken cancellationToken)
+    {
+        var query = new GetSolveStatisticsQuery();
+
+        return await mediator.SendAsync<GetSolveStatisticsQuery, SolveStatisticsDto>(
+            query,
+            cancellationToken);
+    }
+
+    [HttpGet("resources")]
+    [Authorize(Roles = UserRoles.Administrator)]
+    public async Task<IActionResult> GetRunnerServerResources(CancellationToken cancellationToken)
+    {
+        using var httpClient = new HttpClient();
+
+        var response = await httpClient.GetAsync("http://host.docker.internal:5100/status", cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return StatusCode((int)response.StatusCode,
+                $"Ошибка при получении данных от Runner сервера: {response.ReasonPhrase}");
+        }
+
+        var content = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        return Content(content, "application/json");
+    }
+
+    [HttpGet("logs")]
+    [Authorize(Roles = UserRoles.Administrator)]
+    public async Task<IActionResult> GetLogsAsync(CancellationToken cancellationToken)
+    {
+        var logDir = "Logs";
+        var latestLogFile = Directory.GetFiles(logDir, "log-*.txt")
+                                     .OrderByDescending(f => f)
+                                     .FirstOrDefault();
+
+        if (latestLogFile is null)
+            return NotFound("Лог-файл не найден");
+
+        var lines = await System.IO.File.ReadAllLinesAsync(latestLogFile, cancellationToken);
+
+        return Content(string.Join(Environment.NewLine, lines), "text/plain", Encoding.UTF8);
     }
 }

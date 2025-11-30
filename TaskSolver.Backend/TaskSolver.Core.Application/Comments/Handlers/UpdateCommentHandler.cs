@@ -2,6 +2,7 @@
 using TaskSolver.Core.Application.Comments.Commands;
 using TaskSolver.Core.Application.Common;
 using TaskSolver.Core.Domain.Abstractions.Results;
+using TaskSolver.Core.Domain.Users.Constants;
 
 namespace TaskSolver.Core.Application.Comments.Handlers;
 
@@ -19,12 +20,19 @@ public sealed class UpdateCommentHandler(
 
         if (comment.UserId != request.UserId)
         {
-            return Result.Fail("Вы не являетесь владельцем комментария", ErrorCode.Forbidden);
+            var user = await unitOfWork.Users.GetByIdAsync(request.UserId, cancellationToken);
+            if (user is null || user.Role != UserRoles.Administrator)
+            {
+                return Result.Fail("Вы не являетесь владельцем комментария", ErrorCode.Forbidden);
+            }
         }
 
-        comment.Update(request.Content);
+        if (comment.Content != request.Content)
+        {
+            comment.Update(request.Content);
 
-        await unitOfWork.CommitAsync(cancellationToken);
+            await unitOfWork.CommitAsync(cancellationToken);
+        }
 
         return Result.Ok();
     }

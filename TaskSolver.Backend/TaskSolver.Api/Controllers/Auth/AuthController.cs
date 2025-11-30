@@ -170,4 +170,23 @@ public class AuthController(IMediator mediator) : ApiBaseController
 
         return Ok();
     }
+
+    [HttpPost("refresh")]
+    [AllowAnonymous]
+    public async Task<ActionResult<AuthResponseDto>> RefreshAsync(
+        [FromBody] RefreshTokensRequest request,
+        CancellationToken cancellationToken)
+    {
+        var command = request.ToCommand();
+
+        var result = await mediator.SendAsync<RefreshTokensCommand, Result<AuthResponseDto>>(
+            command,
+            cancellationToken);
+        if (!result.IsSuccess)
+        {
+            return HandleFailure(result);
+        }
+
+        return result.Value;
+    }
 }

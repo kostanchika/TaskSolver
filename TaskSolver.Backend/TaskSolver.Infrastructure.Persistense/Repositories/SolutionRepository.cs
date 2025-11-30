@@ -28,4 +28,11 @@ public sealed class SolutionRepository(AppDbContext context)
     {
         await context.Solutions.AddAsync(solution, cancellationToken);
     }
+
+    public async Task<IEnumerable<Solution>> GetAllAsync(CancellationToken cancellationToken)
+    {
+        return await context.Solutions
+            .Include(s => s.Results)
+            .ToListAsync(cancellationToken);
+    }
 }

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace CodeRunner;
@@ -59,6 +60,41 @@ public sealed class Program
             File.Delete(tmpFile);
 
             return new { Stdout = stdout.Trim(), Stderr = stderr.Trim() };
+        });
+
+        app.MapGet("/status", () =>
+        {
+            var process = Process.GetCurrentProcess();
+
+            var cpuTime = process.TotalProcessorTime.TotalSeconds;
+            var uptime = DateTime.UtcNow - process.StartTime.ToUniversalTime();
+            var cpuUsagePercent = (cpuTime / uptime.TotalSeconds) / Environment.ProcessorCount * 100;
+
+            var memoryWorkingSetMb = process.WorkingSet64 / 1024 / 1024;
+            var totalMemoryMb = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / 1024 / 1024;
+
+            var drives = DriveInfo.GetDrives()
+                .Where(d => d.IsReady)
+                .Select(d => new {
+                    Name = d.Name,
+                    TotalGb = d.TotalSize / 1024d / 1024d / 1024d,
+                    FreeGb = d.AvailableFreeSpace / 1024d / 1024d / 1024d,
+                    UsedGb = (d.TotalSize - d.AvailableFreeSpace) / 1024d / 1024d / 1024d
+                });
+
+            var netSent = process.PagedSystemMemorySize64 / 1024 / 1024;
+            var netReceived = process.PagedMemorySize64 / 1024 / 1024;
+
+            return new
+            {
+                ServerTime = DateTime.UtcNow,
+                Uptime = uptime,
+                CpuUsagePercent = Math.Round(cpuUsagePercent, 2),
+                MemoryWorkingSetMb = memoryWorkingSetMb,
+                TotalMemoryMb = totalMemoryMb,
+                Drives = drives,
+                Threads = process.Threads.Count
+            };
         });
 
         app.Run();

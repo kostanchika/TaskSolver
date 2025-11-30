@@ -23,13 +23,17 @@ public static class DependencyInjectionExtensions
     public static void ConfigureLogger(this WebApplicationBuilder builder)
     {
         Log.Logger = new LoggerConfiguration()
+            .MinimumLevel.Information()
+            .MinimumLevel.Override("Microsoft.EntityFrameworkCore.Database.Command", Serilog.Events.LogEventLevel.Warning)
+            .MinimumLevel.Override("Microsoft.EntityFrameworkCore", Serilog.Events.LogEventLevel.Warning)
+            .MinimumLevel.Override("System.Net.Http.HttpClient", Serilog.Events.LogEventLevel.Warning)
+            .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Warning)
             .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
             .WriteTo.File(
                 "Logs/log-.txt",
                 rollingInterval: RollingInterval.Day,
                 outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
-            .Enrich
-                .FromLogContext()
+            .Enrich.FromLogContext()
             .CreateLogger();
 
         builder.Host.UseSerilog();
