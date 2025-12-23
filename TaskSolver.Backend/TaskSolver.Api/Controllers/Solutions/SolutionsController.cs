@@ -6,6 +6,7 @@ using TaskSolver.Api.Controllers.Solutions.Requests;
 using TaskSolver.Core.Application.Solutions.Commands;
 using TaskSolver.Core.Application.Solutions.DTOs;
 using TaskSolver.Core.Application.Solutions.Queries;
+using TaskSolver.Core.Domain.Abstractions.Results;
 
 namespace TaskSolver.Api.Controllers.Solutions;
 
@@ -51,10 +52,10 @@ public class SolutionsController(
 
             var scopedMediator = scope.ServiceProvider.GetRequiredService<IMediator>();
 
-            var id = await scopedMediator.SendAsync<SendSolutionCommand, Guid>(
+            var id = await scopedMediator.SendAsync<SendSolutionCommand, Result<Guid>>(
                 command,
                 cancellationToken);
-        });
+        }, CancellationToken.None);
 
         return Accepted();
     }

@@ -1,13 +1,17 @@
 ﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using System.Net;
 using System.Text;
 using TaskSolver.Api.Exceptions;
 using TaskSolver.Api.Extensions;
+using TaskSolver.Api.Hosting;
 using TaskSolver.Core.Application;
 using TaskSolver.Infrastructure;
+using TaskSolver.Infrastructure.Matches.Hubs;
 using TaskSolver.Infrastructure.Persistense;
 using TaskSolver.Infrastructure.Persistense.Contexts;
 using TaskSolver.Infrastructure.Solutions.Hubs;
@@ -27,7 +31,8 @@ public class Program
         builder.ConfigureLogger();
         builder.Services.AddSwaggerAuth();
         builder.Services.AddHttpClient()
-            .AddMistralHttpClient(builder.Configuration);
+            .AddMistralHttpClient(builder.Configuration)
+            .AddCodeRunnerHttpClient(builder.Configuration);
 
         builder.Services.AddProblemDetails();
         builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
@@ -36,6 +41,13 @@ public class Program
             .AddPersistense(builder.Configuration)
             .AddInfrastructre(builder.Configuration)
             .HostEvents();
+
+        builder.Services.Configure<CookiePolicyOptions>(options =>
+        {
+            options.MinimumSameSitePolicy = SameSiteMode.None;
+        });
+
+        builder.Services.AddHostedService<MatchmakingQueueService>();
 
         builder.Services.AddAuthentication(options =>
         {
@@ -51,7 +63,8 @@ public class Program
 
                     var path = context.HttpContext.Request.Path;
                     if (!string.IsNullOrEmpty(accessToken) &&
-                        path.StartsWithSegments("/solutionsHub"))
+                        path.StartsWithSegments("/solutionsHub") ||
+                        path.StartsWithSegments("/matchmakingHub"))
                     {
                         context.Token = accessToken;
                     }
@@ -78,11 +91,21 @@ public class Program
 
         var app = builder.Build();
 
+        var options = new ForwardedHeadersOptions
+        {
+            ForwardedHeaders = ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost
+        };
+
+        options.KnownNetworks.Clear();
+        options.KnownProxies.Clear();
+
+        app.UseForwardedHeaders(options);
+
         app.UseWebSockets();
         
         app.UseCors(options =>
         {
-            options.WithOrigins(["http://localhost:5173"]);
+            options.WithOrigins(["http://localhost:5173", "https://tasksolver.com"]);
             options.AllowAnyHeader();
             options.AllowAnyMethod();
             options.AllowCredentials();
@@ -125,11 +148,13 @@ public class Program
 
         app.UseStaticFiles("/api/static");
 
+        app.UseAuthentication();
         app.UseAuthorization();
 
         app.MapControllers();
 
         app.MapHub<SolutionHub>("/solutionsHub");
+        app.MapHub<MatchmakingHub>("/matchmakingHub");
 
         app.Run();
     }

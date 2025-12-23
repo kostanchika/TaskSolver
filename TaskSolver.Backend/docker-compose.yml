@@ -1,11 +1,11 @@
 services:
   tasksolver.api:
-    image: kostanchik/tasksolverapi
+    image: kostanchik/tasksolverapi:latest
     build:
       context: .
       dockerfile: TaskSolver.Api/Dockerfile
     ports:
-      - "5000:5000"
+      - "5001:5000"
     environment:
       - ASPNETCORE_HTTP_PORTS=5000
       - ASPNETCORE_ENVIRONMENT=Development
@@ -24,8 +24,17 @@ services:
       - Google__ClientId=${GOOGLE_CLIENT_ID}
       - Google__ClientSecret=${GOOGLE_CLIENT_SECRET}
       - Mistral__ApiKey=${MISTRAL_API_KEY}
+      - CodeRunner__Url=${CODERUNNER_URL}
     depends_on:
       - postgres
+
+  tasksolver.coderunner:
+    image: kostanchik/tasksolver.coderunner:latest
+    build:
+      context: .
+      dockerfile: TaskSolver.Coderunner/Dockerfile
+    ports:
+      - "5101:8080"
 
   postgres:
     image: postgres:latest

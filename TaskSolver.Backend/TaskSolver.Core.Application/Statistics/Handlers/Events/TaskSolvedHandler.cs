@@ -7,7 +7,8 @@ using TaskSolver.Core.Domain.Solutions.Events;
 namespace TaskSolver.Core.Application.Statistics.Handlers.Events;
 
 public sealed class TaskSolvedHandler(
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    ISolutionNotificator solutionNotificator)
     : IDomainEventHandler<TaskSolvedEvent>
 {
     const int BASE_INCOME = 30;
@@ -46,5 +47,7 @@ public sealed class TaskSolvedHandler(
         }
 
         await unitOfWork.CommitAsync();
+
+        await solutionNotificator.NotifiySolutionCompleted(@event.UserId, @event.TaskId);
     }
 }

@@ -87,6 +87,90 @@ namespace TaskSolver.Infrastructure.Persistense.Migrations
                     b.ToTable("Marks");
                 });
 
+            modelBuilder.Entity("TaskSolver.Core.Domain.Matches.Match", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("EndedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("EndsAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("Player1Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Player2Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("WinnerId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Player1Id");
+
+                    b.HasIndex("Player2Id");
+
+                    b.ToTable("Matches");
+                });
+
+            modelBuilder.Entity("TaskSolver.Core.Domain.Matches.SolveRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsCompleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("MatchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("SolvedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TaskId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MatchId");
+
+                    b.ToTable("SolveRecord");
+                });
+
+            modelBuilder.Entity("TaskSolver.Core.Domain.Matches.TaskSlot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("MatchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TaskId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MatchId");
+
+                    b.ToTable("TaskSlot");
+                });
+
             modelBuilder.Entity("TaskSolver.Core.Domain.Profiles.Profile", b =>
                 {
                     b.Property<Guid>("Id")
@@ -255,6 +339,9 @@ namespace TaskSolver.Infrastructure.Persistense.Migrations
                     b.Property<Guid?>("SolutionId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("SolveRecordId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Stderr")
                         .IsRequired()
                         .HasColumnType("text");
@@ -266,6 +353,8 @@ namespace TaskSolver.Infrastructure.Persistense.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("SolutionId");
+
+                    b.HasIndex("SolveRecordId");
 
                     b.ToTable("TestResult");
                 });
@@ -509,6 +598,37 @@ namespace TaskSolver.Infrastructure.Persistense.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("TaskSolver.Core.Domain.Matches.Match", b =>
+                {
+                    b.HasOne("TaskSolver.Core.Domain.Users.User", null)
+                        .WithMany()
+                        .HasForeignKey("Player1Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TaskSolver.Core.Domain.Users.User", null)
+                        .WithMany()
+                        .HasForeignKey("Player2Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TaskSolver.Core.Domain.Matches.SolveRecord", b =>
+                {
+                    b.HasOne("TaskSolver.Core.Domain.Matches.Match", null)
+                        .WithMany("SolveRecords")
+                        .HasForeignKey("MatchId")
+                        .OnDelete(DeleteBehavior.Cascade);
+                });
+
+            modelBuilder.Entity("TaskSolver.Core.Domain.Matches.TaskSlot", b =>
+                {
+                    b.HasOne("TaskSolver.Core.Domain.Matches.Match", null)
+                        .WithMany("TaskSlots")
+                        .HasForeignKey("MatchId")
+                        .OnDelete(DeleteBehavior.Cascade);
+                });
+
             modelBuilder.Entity("TaskSolver.Core.Domain.Profiles.Profile", b =>
                 {
                     b.HasOne("TaskSolver.Core.Domain.Users.User", "User")
@@ -563,6 +683,11 @@ namespace TaskSolver.Infrastructure.Persistense.Migrations
                         .WithMany("Results")
                         .HasForeignKey("SolutionId")
                         .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("TaskSolver.Core.Domain.Matches.SolveRecord", null)
+                        .WithMany("Results")
+                        .HasForeignKey("SolveRecordId")
+                        .OnDelete(DeleteBehavior.Cascade);
                 });
 
             modelBuilder.Entity("TaskSolver.Core.Domain.Statistics.TaskRatingHistory", b =>
@@ -606,6 +731,18 @@ namespace TaskSolver.Infrastructure.Persistense.Migrations
                         .WithMany("ExternalLogins")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade);
+                });
+
+            modelBuilder.Entity("TaskSolver.Core.Domain.Matches.Match", b =>
+                {
+                    b.Navigation("SolveRecords");
+
+                    b.Navigation("TaskSlots");
+                });
+
+            modelBuilder.Entity("TaskSolver.Core.Domain.Matches.SolveRecord", b =>
+                {
+                    b.Navigation("Results");
                 });
 
             modelBuilder.Entity("TaskSolver.Core.Domain.Profiles.Profile", b =>

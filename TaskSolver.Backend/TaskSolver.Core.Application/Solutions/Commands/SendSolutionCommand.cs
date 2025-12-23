@@ -1,4 +1,5 @@
 ﻿using MitMediator;
+using TaskSolver.Core.Domain.Abstractions.Results;
 
 namespace TaskSolver.Core.Application.Solutions.Commands;
 
@@ -7,4 +8,4 @@ public sealed record SendSolutionCommand(
     Guid TaskId,
     Guid LanguageId,
     string Code)
-    : IRequest<Guid>;
+    : IRequest<Result<Guid>>;

@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "JetBrains Mono", monospace;
+  background: #252525;
+  color: #ffffff;
+  overflow-x: hidden;
+}
+
+/* Кастомные стили скроллбара */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(45deg, #e85353, #e85353);
+  border-radius: 3px;
+}
+
+/* tailwind-helpers.css */
+.text-syntax-keyword {
+  white-space: pre-wrap;
+}
+.language-ts {
+  color: #cbd5e1;
+}
+.language-ts .keyword {
+  color: #7dd3fc;
+}
+.language-ts .string {
+  color: #fca5a5;
+}
+.language-ts .type {
+  color: #fbbf24;
+}

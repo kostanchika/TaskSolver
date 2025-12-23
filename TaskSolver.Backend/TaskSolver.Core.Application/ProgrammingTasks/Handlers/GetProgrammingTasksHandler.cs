@@ -2,17 +2,25 @@
 using TaskSolver.Core.Application.Common;
 using TaskSolver.Core.Application.ProgrammingTasks.DTOs;
 using TaskSolver.Core.Application.ProgrammingTasks.Queries;
+using TaskSolver.Core.Domain.Abstractions.Results;
 
 namespace TaskSolver.Core.Application.ProgrammingTasks.Handlers;
 
 public sealed class GetProgrammingTasksHandler(
     IUnitOfWork unitOfWork)
-    : IRequestHandler<GetProgrammingTasksQuery, IReadOnlyList<ProgrammingTaskDto>>
+    : IRequestHandler<GetProgrammingTasksQuery, PagedResult<ProgrammingTaskWithMarkDto>>
 {
-    public async ValueTask<IReadOnlyList<ProgrammingTaskDto>> HandleAsync(GetProgrammingTasksQuery request, CancellationToken cancellationToken)
+    public async ValueTask<PagedResult<ProgrammingTaskWithMarkDto>> HandleAsync(GetProgrammingTasksQuery request, CancellationToken cancellationToken)
     {
-        var programmingTasks = await unitOfWork.ProgrammingTasks.GetAllAsync(cancellationToken);
-
-        return [.. programmingTasks.Select(ProgrammingTaskDto.FromEntity)];
+        return await unitOfWork.ProgrammingTasks.GetAllAsync(
+            request.Name,
+            request.Keywords,
+            request.Sigil,
+            request.MarkFrom,
+            request.MarkTo,
+            request.Page,
+            request.PageSize,
+            request.UserId,
+            cancellationToken);
     }
 }

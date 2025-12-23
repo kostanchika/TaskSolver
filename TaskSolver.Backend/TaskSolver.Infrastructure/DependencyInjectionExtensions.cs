@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using TaskSolver.Core.Application.Common.Interfaces;
 using TaskSolver.Core.Application.Consulting.Interfaces;
+using TaskSolver.Core.Application.Matches.Interfaces;
 using TaskSolver.Core.Application.Profiles.Handlers.Events;
 using TaskSolver.Core.Application.Solutions.Interfaces;
 using TaskSolver.Core.Application.Users.Interfaces;
@@ -12,6 +13,7 @@ using TaskSolver.Infrastructure.Auth.Configurations;
 using TaskSolver.Infrastructure.Common;
 using TaskSolver.Infrastructure.Common.Events;
 using TaskSolver.Infrastructure.Consulting;
+using TaskSolver.Infrastructure.Matches;
 using TaskSolver.Infrastructure.Solutions;
 
 namespace TaskSolver.Infrastructure;
@@ -60,13 +62,21 @@ public static class DependencyInjectionExtensions
     internal static IServiceCollection AddSolutionsModule(this IServiceCollection services)
     {
         return services
-            .AddSingleton<ISolutionNotificator, SignalRSolutionNotificator>();
+            .AddSingleton<ISolutionNotificator, SignalRSolutionNotificator>()
+            .AddScoped<ICodeRunner, ExternalCodeRunner>();
     }
 
     internal static IServiceCollection AddConsultingModule(this IServiceCollection services)
     {
         return services
             .AddTransient<ITaskConsultant, MistralTaskConsultant>();
+    }
+
+    internal static IServiceCollection AddMatchmakingModule(this IServiceCollection services)
+    {
+        return services
+            .AddSingleton<IMatchmakingQueue, InMemoryMatchmakingQueue>()
+            .AddSingleton<IMatchmakingNotificator, SignalRMatchmakingNotificator>();
     }
 
     public static IServiceCollection AddEvents(this IServiceCollection services)
@@ -100,6 +110,7 @@ public static class DependencyInjectionExtensions
             .AddEvents()
             .AddAuthModule(configuration)
             .AddSolutionsModule()
-            .AddConsultingModule();
+            .AddConsultingModule()
+            .AddMatchmakingModule();
     }
 }

@@ -2,6 +2,7 @@
 using TaskSolver.Core.Application.Common;
 using TaskSolver.Core.Application.Common.Interfaces;
 using TaskSolver.Core.Application.Marks.Interfaces;
+using TaskSolver.Core.Application.Matches.Interfaces;
 using TaskSolver.Core.Application.Profiles.Interfaces;
 using TaskSolver.Core.Application.ProgrammingLanguages.Interfaces;
 using TaskSolver.Core.Application.Solutions.Interfaces;
@@ -31,6 +32,8 @@ public sealed class UnitOfWork(
 
     private IStatisticsRepository _statisticsRepository = null!;
 
+    private IMatchRepository _matchRepository = null!;
+
     public IUserRepository Users => _users ??= new UserRepository(context);
 
     public IProfileRepository Profiles => _profiles ??= new ProfileRepository(context);
@@ -43,6 +46,8 @@ public sealed class UnitOfWork(
     public ISolutionRepository Solutions => _solutionRepository ??= new SolutionRepository(context);
 
     public IStatisticsRepository UserStatistics => _statisticsRepository ??= new StatisticsRepository(context);
+
+    public IMatchRepository Matches => _matchRepository ??= new MatchRepository(context);
 
     public async Task CommitAsync(CancellationToken cancellationToken = default)
     {

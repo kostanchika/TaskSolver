@@ -12,7 +12,7 @@ using TaskSolver.Core.Domain.Users.Constants;
 
 namespace TaskSolver.Api.Controllers.Statistics;
 
-[Route("api/[controller]")]
+[Route("api/statistics")]
 [ApiController]
 public sealed class StatisticsController(IMediator mediator)
     : ApiBaseController
@@ -104,11 +104,20 @@ public sealed class StatisticsController(IMediator mediator)
 
     [HttpGet("resources")]
     [Authorize(Roles = UserRoles.Administrator)]
-    public async Task<IActionResult> GetRunnerServerResources(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetRunnerServerResources(
+        [FromServices] IConfiguration configuration,
+        CancellationToken cancellationToken)
     {
         using var httpClient = new HttpClient();
 
-        var response = await httpClient.GetAsync("http://host.docker.internal:5100/status", cancellationToken);
+        var coderunner = configuration["CodeRunner:Url"];
+
+        if (coderunner is null)
+        {
+            return StatusCode(500, "Execution Server url was not found");
+        }
+
+        var response = await httpClient.GetAsync(configuration["CodeRunner:Url"] + "/status", cancellationToken);
 
         if (!response.IsSuccessStatusCode)
         {

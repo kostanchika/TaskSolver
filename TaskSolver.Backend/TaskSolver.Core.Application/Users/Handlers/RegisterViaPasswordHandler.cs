@@ -1,7 +1,5 @@
 ﻿using MitMediator;
-using System.Net.Http.Headers;
 using TaskSolver.Core.Application.Common;
-using TaskSolver.Core.Application.Common.Interfaces;
 using TaskSolver.Core.Application.Users.Commands;
 using TaskSolver.Core.Application.Users.DTOs;
 using TaskSolver.Core.Application.Users.Interfaces;

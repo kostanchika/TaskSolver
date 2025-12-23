@@ -14,6 +14,7 @@ public sealed class SolutionRepository(AppDbContext context)
             .Include(s => s.Results)
             .AsNoTracking()
             .OrderByDescending(s => s.CreatedAt)
+            .Where(s => s.TaskId == taskId && s.UserId == userId)
             .ToListAsync(cancellationToken);
     }
 

@@ -87,6 +87,14 @@ public static class DependencyInjectionExtensions
              options.Scope.Add("user:email");
              options.Events = new OAuthEvents
              {
+                 OnRedirectToAuthorizationEndpoint = context =>
+                 {
+                     Console.WriteLine("Redirect " + context.RedirectUri);
+
+                     context.Response.Redirect(context.RedirectUri);
+
+                     return Task.CompletedTask;
+                 },
                  OnTicketReceived = async context =>
                  {
                      var githubId = context.Properties!.Items["githubId"]!;
@@ -116,7 +124,7 @@ public static class DependencyInjectionExtensions
                      }
 
 
-                     var redirectUrl = $"http://localhost:5173/auth/success?accessToken={authResponseDtoResult.Value.AccessToken}&refreshToken={authResponseDtoResult.Value.RefreshToken}&userId={authResponseDtoResult.Value.UserId}&role={authResponseDtoResult.Value.Role}";
+                     var redirectUrl = $"https://tasksolver.com/auth/success?accessToken={authResponseDtoResult.Value.AccessToken}&refreshToken={authResponseDtoResult.Value.RefreshToken}&userId={authResponseDtoResult.Value.UserId}&role={authResponseDtoResult.Value.Role}";
                      context.Response.Redirect(redirectUrl);
 
                      context.HandleResponse();
@@ -206,7 +214,7 @@ public static class DependencyInjectionExtensions
                      }
 
 
-                     var redirectUrl = $"http://localhost:5173/auth/success?accessToken={authResponseDtoResult.Value.AccessToken}&refreshToken={authResponseDtoResult.Value.RefreshToken}&userId={authResponseDtoResult.Value.UserId}&role={authResponseDtoResult.Value.Role}";
+                     var redirectUrl = $"https://tasksolver.com/auth/success?accessToken={authResponseDtoResult.Value.AccessToken}&refreshToken={authResponseDtoResult.Value.RefreshToken}&userId={authResponseDtoResult.Value.UserId}&role={authResponseDtoResult.Value.Role}";
                      context.Response.Redirect(redirectUrl);
 
                      context.HandleResponse();
@@ -230,6 +238,19 @@ public static class DependencyInjectionExtensions
                 new AuthenticationHeaderValue("Bearer", configuration["Mistral:ApiKey"]);
             client.DefaultRequestHeaders.Accept.Add(
                 new MediaTypeWithQualityHeaderValue("application/json"));
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
+
+        return services;
+    }
+
+    public static IServiceCollection AddCodeRunnerHttpClient(this IServiceCollection services, IConfiguration configuration)
+    {
+        var codeRunnerUrl = configuration["CodeRunner:Url"]
+            ?? throw new NullReferenceException("codeRunnerUrl is null");
+        services.AddHttpClient("coderunner", client =>
+        {
+            client.BaseAddress = new Uri(codeRunnerUrl);
             client.Timeout = TimeSpan.FromSeconds(30);
         });
 

@@ -2,6 +2,7 @@
 using TaskSolver.Core.Domain.Abstractions.Common;
 using TaskSolver.Core.Domain.Comments;
 using TaskSolver.Core.Domain.Marks;
+using TaskSolver.Core.Domain.Matches;
 using TaskSolver.Core.Domain.Profiles;
 using TaskSolver.Core.Domain.ProgrammingLanguages;
 using TaskSolver.Core.Domain.Solutions;
@@ -26,6 +27,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Mark> Marks => Set<Mark>();
     public DbSet<Solution> Solutions => Set<Solution>();
     public DbSet<UserStatistics> UserStatistics => Set<UserStatistics>();
+    
+    public DbSet<Match> Matches => Set<Match>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
