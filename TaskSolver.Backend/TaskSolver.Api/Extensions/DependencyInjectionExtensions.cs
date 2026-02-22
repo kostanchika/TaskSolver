@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OAuth;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using MitMediator;
 using Serilog;
 using System.Net.Http.Headers;
@@ -54,20 +54,8 @@ public static class DependencyInjectionExtensions
                 Scheme = "bearer"
             });
 
-            c.AddSecurityRequirement(new OpenApiSecurityRequirement
-            {
-                {
-                    new OpenApiSecurityScheme
-                    {
-                        Reference = new OpenApiReference
-                        {
-                        Type = ReferenceType.SecurityScheme,
-                        Id = "Bearer"
-                        }
-                    },
-                Array.Empty<string>()
-                }
-            });
+            c.AddSecurityRequirement(document =>
+                new() { [new OpenApiSecuritySchemeReference("Bearer", document)] = [] });
         });
     }
 
@@ -124,7 +112,7 @@ public static class DependencyInjectionExtensions
                      }
 
 
-                     var redirectUrl = $"https://tasksolver.com/auth/success?accessToken={authResponseDtoResult.Value.AccessToken}&refreshToken={authResponseDtoResult.Value.RefreshToken}&userId={authResponseDtoResult.Value.UserId}&role={authResponseDtoResult.Value.Role}";
+                     var redirectUrl = $"http://localhost:5173/auth/success?accessToken={authResponseDtoResult.Value.AccessToken}&refreshToken={authResponseDtoResult.Value.RefreshToken}&userId={authResponseDtoResult.Value.UserId}&role={authResponseDtoResult.Value.Role}";
                      context.Response.Redirect(redirectUrl);
 
                      context.HandleResponse();
