@@ -59,4 +59,39 @@ public sealed class ExternalCodeRunner(
 
         return results;
     }
+
+    public async Task<TestResult> RunTestsAsync(string code, ProgrammingLanguage language, CancellationToken cancellationToken = default)
+    {
+        var payload = new
+        {
+            code,
+            Input = "",
+            language!.Interpretor,
+            language!.FileExtension
+        };
+
+        try
+        {
+            var httpClient = httpClientFactory.CreateClient("coderunner");
+            httpClient.Timeout = TimeSpan.FromSeconds(10);
+
+            var response = await httpClient.PostAsJsonAsync(
+                "run",
+                payload,
+                cancellationToken: cancellationToken);
+
+            var result = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            var doc = JsonDocument.Parse(result);
+
+            string stdout = doc.RootElement.GetProperty("stdout").GetString()!;
+            string stderr = doc.RootElement.GetProperty("stderr").GetString()!;
+
+            return new TestResult("", true, stdout, stderr, true);
+        }
+        catch (Exception ex)
+        {
+            return new TestResult("", true, "", ex.Message, false);
+        }
+    }
 }

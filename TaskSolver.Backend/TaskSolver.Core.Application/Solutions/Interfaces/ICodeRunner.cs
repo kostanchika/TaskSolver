@@ -6,6 +6,11 @@ namespace TaskSolver.Core.Application.Solutions.Interfaces;
 
 public interface ICodeRunner
 {
+    Task<TestResult> RunTestsAsync(
+        string code,
+        ProgrammingLanguage language,
+        CancellationToken cancellationToken = default);
+
     Task<IEnumerable<TestResult>> RunTestsAsync(
         ProgrammingTask task,
         ProgrammingLanguage language,

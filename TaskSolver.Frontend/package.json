@@ -12,8 +12,10 @@
   "dependencies": {
     "@microsoft/signalr": "^10.0.0",
     "@monaco-editor/react": "^4.7.0",
+    "@mui/material": "^7.3.8",
     "axios": "^1.13.1",
     "monaco-editor": "^0.55.1",
+    "mui": "^0.0.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-markdown": "^10.1.0",

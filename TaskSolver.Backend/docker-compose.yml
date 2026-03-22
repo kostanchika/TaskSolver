@@ -44,7 +44,7 @@ services:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     volumes:
-      - pgdata:/var/lib/postgresql/18/data
+      - pgdata:/var/lib/postgresql
     ports:
       - "5432:5432"
 

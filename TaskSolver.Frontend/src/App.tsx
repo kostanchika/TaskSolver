@@ -1,26 +1,27 @@
-import { Routes, Route, useNavigate, Navigate } from "react-router-dom";
-import { OAuthSuccessHandler } from "./components/Auth/OAuthSuccessHandler";
-import { useAuth } from "./hooks/useAuth";
-import { Layout } from "./components/layout/Layout";
-import AuthForms from "./components/Auth/AuthForms";
-import { ProfileView } from "./components/Profile/ProfileView";
-import { ProfileSettings } from "./components/Profile/ProfileSettings";
-import { ProgrammingLanguagesAdmin } from "./components/admin/ProgrammingLanguagesAdmin";
-import { ProgrammingTasksAdmin } from "./components/admin/ProgrammingTasksAdmin";
-import { TaskCatalog } from "./components/Tasks/TaskCatalog";
-import { TaskPage } from "./components/Tasks/TaskPage";
-import { Leaderboard } from "./components/Leaderboard/Leaderboard";
-import { MatchPage } from "./components/Matchmaking/MatchPage";
-import UsersAdmin from "./components/admin/UsersAdmin";
-import StatisticsAdmin from "./components/admin/StatisticsAdmin";
-import ServerMonitoring from "./components/admin/ServerMonitoring";
-import LogsViewer from "./components/admin/LogsViewer";
+import { Routes, Route, useNavigate, Navigate } from 'react-router-dom';
+import { OAuthSuccessHandler } from './components/Auth/OAuthSuccessHandler';
+import { useAuth } from './hooks/useAuth';
+import { Layout } from './components/layout/Layout';
+import AuthForms from './components/Auth/AuthForms';
+import { ProfileView } from './components/Profile/ProfileView';
+import { ProfileSettings } from './components/Profile/ProfileSettings';
+import { ProgrammingLanguagesAdmin } from './components/admin/ProgrammingLanguagesAdmin';
+import { ProgrammingTasksAdmin } from './components/admin/ProgrammingTasksAdmin';
+import { TaskCatalog } from './components/Tasks/TaskCatalog';
+import { TaskPage } from './components/Tasks/TaskPage';
+import { Leaderboard } from './components/Leaderboard/Leaderboard';
+import { MatchPage } from './components/Matchmaking/MatchPage';
+import UsersAdmin from './components/admin/UsersAdmin';
+import StatisticsAdmin from './components/admin/StatisticsAdmin';
+import ServerMonitoring from './components/admin/ServerMonitoring';
+import LogsViewer from './components/admin/LogsViewer';
+import ConstructorPage from './components/Constructor/ConstructorPage';
 
 const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { checkAdmin } = useAuth();
 
   if (!checkAdmin()) {
-    return <Navigate to="/" replace />;
+    return <Navigate to='/' replace />;
   }
 
   return <>{children}</>;
@@ -33,16 +34,16 @@ const App = () => {
   return (
     <Routes>
       <Route
-        path="/auth"
+        path='/auth'
         element={
-          <AuthForms onSuccess={() => navigate("/", { replace: true })} />
+          <AuthForms onSuccess={() => navigate('/', { replace: true })} />
         }
       />
-      <Route path="/auth/success" element={<OAuthSuccessHandler />} />
+      <Route path='/auth/success' element={<OAuthSuccessHandler />} />
       {isAuthenticated && isAdmin && (
         <>
           <Route
-            path="/admin/languages"
+            path='/admin/languages'
             element={
               <AdminRoute>
                 <Layout>
@@ -52,7 +53,7 @@ const App = () => {
             }
           />
           <Route
-            path="/admin/tasks"
+            path='/admin/tasks'
             element={
               <AdminRoute>
                 <Layout>
@@ -62,7 +63,7 @@ const App = () => {
             }
           />
           <Route
-            path="/admin/users"
+            path='/admin/users'
             element={
               <AdminRoute>
                 <Layout>
@@ -72,7 +73,7 @@ const App = () => {
             }
           />
           <Route
-            path="/admin/statistics"
+            path='/admin/statistics'
             element={
               <AdminRoute>
                 <Layout>
@@ -82,7 +83,7 @@ const App = () => {
             }
           />
           <Route
-            path="/admin/resources"
+            path='/admin/resources'
             element={
               <AdminRoute>
                 <Layout>
@@ -92,7 +93,7 @@ const App = () => {
             }
           />
           <Route
-            path="/admin/logs"
+            path='/admin/logs'
             element={
               <AdminRoute>
                 <Layout>
@@ -106,7 +107,7 @@ const App = () => {
       {isAuthenticated && !isAdmin && (
         <>
           <Route
-            path="/"
+            path='/'
             element={
               <Layout>
                 <TaskCatalog />
@@ -114,7 +115,7 @@ const App = () => {
             }
           />
           <Route
-            path="/tasks/:taskId"
+            path='/tasks/:taskId'
             element={
               <Layout>
                 <TaskPage />
@@ -122,7 +123,7 @@ const App = () => {
             }
           />
           <Route
-            path="/profile"
+            path='/profile'
             element={
               <Layout>
                 <ProfileView />
@@ -130,7 +131,7 @@ const App = () => {
             }
           />
           <Route
-            path="/profile/settings"
+            path='/profile/settings'
             element={
               <Layout>
                 <ProfileSettings />
@@ -138,7 +139,7 @@ const App = () => {
             }
           />
           <Route
-            path="/profile/:userId"
+            path='/profile/:userId'
             element={
               <Layout>
                 <ProfileView />
@@ -146,7 +147,7 @@ const App = () => {
             }
           />
           <Route
-            path="/leaderboard"
+            path='/leaderboard'
             element={
               <Layout>
                 <Leaderboard />
@@ -154,7 +155,7 @@ const App = () => {
             }
           />
           <Route
-            path="/matchmaking"
+            path='/matchmaking'
             element={
               <Layout>
                 <MatchPage />
@@ -163,10 +164,19 @@ const App = () => {
           />
 
           <Route
-            path="/match/:matchId"
+            path='/match/:matchId'
             element={
               <Layout>
                 <MatchPage />
+              </Layout>
+            }
+          />
+
+          <Route
+            path='/constructor'
+            element={
+              <Layout>
+                <ConstructorPage />
               </Layout>
             }
           />
@@ -174,12 +184,12 @@ const App = () => {
       )}
 
       {isAuthenticated && isAdmin && (
-        <Route path="*" element={<Navigate to="/admin/users" />} />
+        <Route path='*' element={<Navigate to='/admin/users' />} />
       )}
       {isAuthenticated && !isAdmin && (
-        <Route path="*" element={<Navigate to="/" />} />
+        <Route path='*' element={<Navigate to='/' />} />
       )}
-      {!isAuthenticated && <Route path="*" element={<Navigate to="/auth" />} />}
+      {!isAuthenticated && <Route path='*' element={<Navigate to='/auth' />} />}
     </Routes>
   );
 };
