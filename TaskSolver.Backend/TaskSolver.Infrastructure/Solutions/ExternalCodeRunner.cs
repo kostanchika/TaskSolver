@@ -17,25 +17,24 @@ public sealed class ExternalCodeRunner(
         string code,
         CancellationToken cancellationToken = default)
     {
-        List<TestResult> results = [];
-
         var tests = task.Tests;
 
-        foreach (var test in tests)
+        var testTasks = tests.Select(async test =>
         {
-
             var payload = new
             {
                 code,
                 test.Input,
+                Language = language.Name,
                 language!.Interpretor,
-                language!.FileExtension
+                language!.FileExtension,
+                TimeoutSeconds = 30
             };
 
             try
             {
                 var httpClient = httpClientFactory.CreateClient("coderunner");
-                httpClient.Timeout = TimeSpan.FromSeconds(10);
+                httpClient.Timeout = TimeSpan.FromSeconds(20);
 
                 var response = await httpClient.PostAsJsonAsync(
                     "run",
@@ -49,13 +48,25 @@ public sealed class ExternalCodeRunner(
                 string stdout = doc.RootElement.GetProperty("stdout").GetString()!;
                 string stderr = doc.RootElement.GetProperty("stderr").GetString()!;
 
-                results.Add(new TestResult(test.Input, test.IsPublic, stdout, stderr, test.Output == stdout));
+                return new TestResult(
+                    test.Input,
+                    test.IsPublic,
+                    stdout,
+                    stderr,
+                    test.Output == stdout);
             }
             catch (Exception ex)
             {
-                results.Add(new TestResult(test.Input, test.IsPublic, "", ex.Message, false));
+                return new TestResult(
+                    test.Input,
+                    test.IsPublic,
+                    "",
+                    ex.Message,
+                    false);
             }
-        }
+        });
+
+        var results = await Task.WhenAll(testTasks);
 
         return results;
     }
@@ -65,15 +76,17 @@ public sealed class ExternalCodeRunner(
         var payload = new
         {
             code,
-            Input = "",
+            Input = "NULL",
+            Language = language.Name,
             language!.Interpretor,
-            language!.FileExtension
+            language!.FileExtension,
+            TimeoutSeconds = 30
         };
 
         try
         {
             var httpClient = httpClientFactory.CreateClient("coderunner");
-            httpClient.Timeout = TimeSpan.FromSeconds(10);
+            httpClient.Timeout = TimeSpan.FromSeconds(20);
 
             var response = await httpClient.PostAsJsonAsync(
                 "run",
