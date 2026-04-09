@@ -60,14 +60,6 @@ const getMonacoLanguage = (
   return 'plaintext';
 };
 
-const getLanguageName = (
-  languageId: string,
-  languages: ProgrammingLanguageDto[],
-) => {
-  const lang = languages.find((l) => l.id === languageId);
-  return lang ? `${lang.name} ${lang.version}` : languageId;
-};
-
 export const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
   task,
   height = '500px',
@@ -282,6 +274,8 @@ export const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
     setError(null);
 
     try {
+      localStorage.setItem(`task:${task?.id ?? -1}:${language}`, code);
+      setLastSaved(new Date());
       await onSubmit(code, language);
     } catch (err) {
       setError('Ошибка при отправке решения');

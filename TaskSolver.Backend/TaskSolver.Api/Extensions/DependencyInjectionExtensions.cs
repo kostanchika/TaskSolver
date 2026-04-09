@@ -112,7 +112,7 @@ public static class DependencyInjectionExtensions
                      }
 
 
-                     var redirectUrl = $"http://localhost:5173/auth/success?accessToken={authResponseDtoResult.Value.AccessToken}&refreshToken={authResponseDtoResult.Value.RefreshToken}&userId={authResponseDtoResult.Value.UserId}&role={authResponseDtoResult.Value.Role}";
+                     var redirectUrl = $"https://tasksolver.com/auth/success?accessToken={authResponseDtoResult.Value.AccessToken}&refreshToken={authResponseDtoResult.Value.RefreshToken}&userId={authResponseDtoResult.Value.UserId}&role={authResponseDtoResult.Value.Role}";
                      context.Response.Redirect(redirectUrl);
 
                      context.HandleResponse();

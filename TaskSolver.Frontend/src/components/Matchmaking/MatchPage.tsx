@@ -15,6 +15,7 @@ import { MatchTimer } from './MatchTimer';
 import { QueueTimer } from './QueueTimer';
 import { usersApi } from '../../api/users/users';
 import { ProfileDto } from '../../api/users/types';
+import { AxiosError } from 'axios';
 
 // Разделим на два разных компонента
 const MatchContent = ({ matchId }: { matchId: string }) => {
@@ -141,8 +142,14 @@ const MatchContent = ({ matchId }: { matchId: string }) => {
         code,
       );
       setActiveTab('solutions');
-    } catch {
-      alert('Ошибка при отправке решения');
+    } catch (error) {
+      if (error instanceof AxiosError) {
+        if (error.status === 409) {
+          alert('Вы уже решили данную задачу');
+        } else {
+          alert('Ошибка при отправке решения');
+        }
+      }
     }
   };
 
@@ -329,7 +336,7 @@ const MatchContent = ({ matchId }: { matchId: string }) => {
     );
   }
 
-  if (isLoading) {
+  if (isLoading && !match) {
     return (
       <div className='min-h-screen bg-[#333333] flex items-center justify-center'>
         <div className='flex items-center space-x-3'>
@@ -935,7 +942,7 @@ const MatchContent = ({ matchId }: { matchId: string }) => {
                   theme={'vs-dark'}
                   onEditorReady={() => {}}
                   readOnly={!!match.endedAt}
-                  task={null}
+                  task={match}
                 />
               </div>
             </div>
@@ -1093,7 +1100,7 @@ const QueueContent = () => {
 
   const onBack = () => navigate('/');
 
-  if (isLoading) {
+  if (isLoading && queueInfo == null) {
     return (
       <div className='min-h-screen bg-[#333333] flex items-center justify-center'>
         <div className='flex items-center space-x-3'>
