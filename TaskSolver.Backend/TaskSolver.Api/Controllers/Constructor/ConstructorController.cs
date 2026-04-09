@@ -1,14 +1,80 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using System.Text.Json;
-using TaskSolver.Core.Domain.Solutions;
-using TaskSolver.Core.Application.Solutions.Interfaces;
-using TaskSolver.Core.Application.Common;
-using Microsoft.AspNetCore.Authorization;
-using TaskSolver.Api.Controllers.Constructor.Responses;
 using TaskSolver.Api.Controllers.Constructor.Requests;
+using TaskSolver.Api.Controllers.Constructor.Responses;
+using TaskSolver.Core.Application.Common;
+using TaskSolver.Core.Application.Solutions.Interfaces;
+using TaskSolver.Core.Domain.Abstractions.Results;
+using TaskSolver.Core.Domain.Constructor;
+using TaskSolver.Core.Domain.Solutions;
+using TaskSolver.Core.Domain.Users;
 
 namespace TaskSolver.Api.Controllers.Constructor;
+
+// DTOs.cs
+public class CreateChatRequest
+{
+    public string Theme { get; set; } = string.Empty;
+    public string Difficulty { get; set; } = string.Empty;
+}
+
+public class GenerateTaskRequest
+{
+    public string Theme { get; set; } = string.Empty;
+    public string Difficulty { get; set; } = string.Empty;
+    public Guid? ChatId { get; set; }
+}
+
+public class ValidateStepRequest
+{
+    public string Code { get; set; } = string.Empty;
+    public string LanguageCode { get; set; } = string.Empty;
+    public int StepNumber { get; set; }
+    public Guid ChatId { get; set; }
+}
+
+public class RunCodeRequest
+{
+    public string Code { get; set; } = string.Empty;
+    public Guid LanguageId { get; set; }
+    public Guid ChatId { get; set; }
+    public int? StepNumber { get; set; }
+}
+
+public class ChatResponse
+{
+    public Guid Id { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string Theme { get; set; } = string.Empty;
+    public string Difficulty { get; set; } = string.Empty;
+    public int LastCompletedStep { get; set; }
+    public int TotalSteps { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    public bool IsArchived { get; set; }
+}
+
+public class ChatDetailResponse
+{
+    public ChatResponse Chat { get; set; } = null!;
+    public GeneratedTask Task { get; set; } = null!;
+    public List<ChatMessage> Messages { get; set; } = new();
+}
+
+public class ValidateStepResponse
+{
+    public bool IsValid { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public string? Hint { get; set; }
+    public List<string> Suggestions { get; set; } = new();
+    public bool IsStepCompleted { get; set; }
+    public bool IsTaskCompleted { get; set; }
+    public int CurrentStep { get; set; }
+    public int TotalSteps { get; set; }
+    public string? NextStepDescription { get; set; }
+    public StepFeedback? StepFeedback { get; set; }
+}
 
 [Route("api/constructor")]
 [ApiController]
@@ -18,8 +84,8 @@ public sealed class ConstructorController : ControllerBase
     private readonly ICodeRunner _codeRunner;
     private readonly IUnitOfWork _unitOfWork;
     private readonly HttpClient _mistral;
+    private readonly ILogger<ConstructorController> _logger;
 
-    private static readonly Dictionary<Guid, GeneratedTask> _sessions = [];
     private static readonly JsonSerializerOptions _options = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -29,19 +95,176 @@ public sealed class ConstructorController : ControllerBase
     public ConstructorController(
         ICodeRunner codeRunner,
         IUnitOfWork unitOfWork,
-        IHttpClientFactory factory)
+        IHttpClientFactory factory,
+        ILogger<ConstructorController> logger)
     {
         _codeRunner = codeRunner;
         _unitOfWork = unitOfWork;
+        _logger = logger;
         _mistral = factory.CreateClient("mistral");
         _mistral.Timeout = TimeSpan.FromMinutes(3);
     }
+
+    // ============== ЧАТЫ ==============
+
+    [HttpGet("chats")]
+    public async Task<ActionResult<List<ChatResponse>>> GetUserChats()
+    {
+        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+        var chats = (await _unitOfWork.TaskChats
+            .GetAllAsync())
+            .Where(c => c.UserId == userId && !c.IsArchived)
+            .OrderByDescending(c => c.UpdatedAt)
+            .Select(c => new ChatResponse
+            {
+                Id = c.Id,
+                Title = c.Title,
+                Theme = c.Theme,
+                Difficulty = c.Difficulty,
+                LastCompletedStep = c.LastCompletedStep,
+                TotalSteps = 0, // Заполним позже из TaskData
+                UpdatedAt = c.UpdatedAt,
+                IsArchived = c.IsArchived
+            })
+            .ToList();
+
+        // Заполняем TotalSteps из JSON
+        foreach (var chat in chats)
+        {
+            var taskChat = await _unitOfWork.TaskChats.GetByIdAsync(chat.Id);
+            if (!string.IsNullOrEmpty(taskChat?.TaskData))
+            {
+                var task = JsonSerializer.Deserialize<GeneratedTask>(taskChat.TaskData, _options);
+                chat.TotalSteps = task?.Steps.Count ?? 0;
+            }
+        }
+
+        return Ok(chats);
+    }
+
+    [HttpGet("chats/{chatId}")]
+    public async Task<ActionResult<ChatDetailResponse>> GetChat(Guid chatId)
+    {
+        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+        var chat = (await _unitOfWork.TaskChats
+            .GetAllAsync())
+            .FirstOrDefault(c => c.Id == chatId && c.UserId == userId);
+
+        if (chat == null)
+            return NotFound("Чат не найден");
+
+        var messages = chat.Messages
+            .OrderBy(m => m.CreatedAt)
+            .ToList();
+
+        var task = JsonSerializer.Deserialize<GeneratedTask>(chat.TaskData, _options)!;
+
+        task.StepFeedbacks = messages
+            .Where(m => m.Role == "assistant" && m.StepNumber.HasValue && m.Feedback != null)
+            .OrderByDescending(m => m.CreatedAt)
+            .DistinctBy(m => m.StepNumber!.Value)
+            .ToDictionary(
+                m => m.StepNumber!.Value,
+                m => JsonSerializer.Deserialize<StepFeedback>(m.Feedback!, _options)!
+            );
+
+        return Ok(new ChatDetailResponse
+        {
+            Chat = new ChatResponse
+            {
+                Id = chat.Id,
+                Title = chat.Title,
+                Theme = chat.Theme,
+                Difficulty = chat.Difficulty,
+                LastCompletedStep = chat.LastCompletedStep,
+                TotalSteps = task.Steps.Count,
+                UpdatedAt = chat.UpdatedAt,
+                IsArchived = chat.IsArchived
+            },
+            Task = task,
+            Messages = messages
+        });
+    }
+
+    [HttpPost("chats")]
+    public async Task<ActionResult<Guid>> CreateChat([FromBody] CreateChatRequest request)
+    {
+        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+        var chat = new TaskChat(
+            userId,
+            $"Задача на тему '{request.Theme}'",
+            request.Theme,
+            request.Difficulty);
+
+        await _unitOfWork.TaskChats.AddAsync(chat);
+        await _unitOfWork.CommitAsync();
+
+        return Ok(chat.Id);
+    }
+
+    [HttpDelete("chats/{chatId}")]
+    public async Task<IActionResult> DeleteChat(Guid chatId)
+    {
+        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+        var chat = (await _unitOfWork.TaskChats.GetAllAsync())
+            .FirstOrDefault(c => c.Id == chatId && c.UserId == userId);
+
+        if (chat == null)
+            return NotFound("Чат не найден");
+
+        await _unitOfWork.TaskChats.DeleteAsync(chat);
+        await _unitOfWork.CommitAsync();
+
+        return NoContent();
+    }
+
+    [HttpPatch("chats/{chatId}/archive")]
+    public async Task<IActionResult> ArchiveChat(Guid chatId)
+    {
+        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+        var chat = (await _unitOfWork.TaskChats.GetAllAsync())
+            .FirstOrDefault(c => c.Id == chatId && c.UserId == userId);
+
+        if (chat == null)
+            return NotFound("Чат не найден");
+
+        chat.IsArchived = true;
+        await _unitOfWork.CommitAsync();
+
+        return NoContent();
+    }
+
+    // ============== ГЕНЕРАЦИЯ ЗАДАЧИ ==============
 
     [HttpPost("generate")]
     public async Task<ActionResult<GeneratedTask>> GenerateTaskAsync(
         [FromBody] GenerateTaskRequest request)
     {
         var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+        // Сохраняем сообщение пользователя
+        if (request.ChatId.HasValue)
+        {
+            var chat = (await _unitOfWork.TaskChats.GetAllAsync())
+                        .FirstOrDefault(c => c.Id == request.ChatId.Value && c.UserId == userId);
+
+
+            var userMessage = new ChatMessage(
+                "user",
+                $"Создать задачу на тему '{request.Theme}' со сложностью '{request.Difficulty}'",
+                null,
+                null,
+                null,
+                null,
+                null);
+            
+            chat.Messages.Add(userMessage);
+        }
 
         var systemPrompt = @"Ты - экспертный ИИ-конструктор задач по программированию. 
         Твоя задача - создавать структурированные задачи с пошаговым решением для обучения программированию.
@@ -106,41 +329,38 @@ public sealed class ConstructorController : ControllerBase
             }
         }
 
-        _sessions[userId] = task;
-
-        return task;
-    }
-
-    [HttpGet("current")]
-    public ActionResult<GeneratedTask> GetCurrentTask()
-    {
-        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-
-        if (!_sessions.TryGetValue(userId, out var task))
+        // Сохраняем в БД если есть chatId
+        if (request.ChatId.HasValue)
         {
-            return NotFound("Нет активной задачи");
-        }
+            var chat = (await _unitOfWork.TaskChats.GetAllAsync())
+                        .FirstOrDefault(c => c.Id == request.ChatId.Value && c.UserId == userId);
 
-        for (int i = 0; i < task.Steps.Count; i++)
-        {
-            task.Steps[i].IsCompleted = i + 1 <= task.LastCompletedStep;
+            if (chat != null)
+            {
+                chat.Title = task.Title;
+                chat.TaskData = JsonSerializer.Serialize(task, _options);
+                chat.UpdatedAt = DateTime.UtcNow;
+
+                // Сохраняем ответ ассистента
+                var assistantMessage = new ChatMessage(
+                    "assistant",
+                    $"Сгенерирована задача: {task.Title}\n\n{task.Description}",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null);
+
+                chat.Messages.Add(assistantMessage);
+
+                await _unitOfWork.CommitAsync();
+            }
         }
 
         return Ok(task);
     }
 
-    [HttpDelete("current")]
-    public IActionResult DeleteCurrentTask()
-    {
-        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-
-        if (!_sessions.Remove(userId))
-        {
-            return NotFound("Нет активной задачи");
-        }
-
-        return NoContent();
-    }
+    // ============== ВАЛИДАЦИЯ ШАГА ==============
 
     [HttpPost("validate-step")]
     public async Task<ActionResult<ValidateStepResponse>> ValidateStep(
@@ -148,10 +368,15 @@ public sealed class ConstructorController : ControllerBase
     {
         var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        if (!_sessions.TryGetValue(userId, out var task))
+        var chat = (await _unitOfWork.TaskChats.GetAllAsync())
+                        .FirstOrDefault(c => c.Id == request.ChatId && c.UserId == userId);
+
+        if (chat == null)
         {
-            return NotFound("Задача не найдена");
+            return NotFound("Чат не найден");
         }
+
+        var task = JsonSerializer.Deserialize<GeneratedTask>(chat.TaskData, _options)!;
 
         var currentStep = task.Steps.FirstOrDefault(s => s.Order == request.StepNumber);
         if (currentStep == null)
@@ -159,7 +384,7 @@ public sealed class ConstructorController : ControllerBase
             return BadRequest("Шаг не найден");
         }
 
-        if (request.StepNumber <= task.LastCompletedStep)
+        if (request.StepNumber <= chat.LastCompletedStep)
         {
             return Conflict("Этот шаг уже выполнен");
         }
@@ -170,6 +395,18 @@ public sealed class ConstructorController : ControllerBase
         {
             return NotFound("Язык не найден");
         }
+
+        // Сохраняем код пользователя
+        var userMessage = new ChatMessage(
+            "user",
+            $"Решение шага {request.StepNumber}: {currentStep.Title}",
+            request.Code,
+            $"{language.Name} {language.Version}",
+            request.StepNumber,
+            null,
+            null);
+
+        chat.Messages.Add(userMessage);
 
         var systemPrompt = @"Ты - ИИ-наставник по программированию. Твоя задача - проверять решения пользователя по шагам и давать конструктивную обратную связь.
 
@@ -196,8 +433,6 @@ public sealed class ConstructorController : ControllerBase
         Код пользователя на {language.Name}:
         {request.Code}
 
-        text
-
         Проверь решение для этого шага. Шаг считается выполненным, если код корректно реализует требуемую функциональность.";
 
         var validateResponse = await SendRequestAsync<ValidateStepResponse>(systemPrompt, userPrompt);
@@ -209,19 +444,14 @@ public sealed class ConstructorController : ControllerBase
 
             bool isStepCompleted = validateResponse.IsValid && validateResponse.IsStepCompleted;
 
-            if (isStepCompleted && request.StepNumber == task.LastCompletedStep + 1)
+            if (isStepCompleted && request.StepNumber == chat.LastCompletedStep + 1)
             {
-                task.LastCompletedStep = request.StepNumber;
+                chat.LastCompletedStep = request.StepNumber;
+                chat.UpdatedAt = DateTime.UtcNow;
                 currentStep.IsCompleted = true;
 
-                task.StepFeedbacks[request.StepNumber] = new StepFeedback
-                {
-                    IsValid = true,
-                    Message = validateResponse.Message,
-                    Hint = validateResponse.Hint,
-                    Suggestions = validateResponse.Suggestions,
-                    ValidatedAt = DateTime.UtcNow
-                };
+                // Обновляем TaskData
+                chat.TaskData = JsonSerializer.Serialize(task, _options);
 
                 validateResponse.IsStepCompleted = true;
 
@@ -239,28 +469,46 @@ public sealed class ConstructorController : ControllerBase
             else
             {
                 validateResponse.IsStepCompleted = false;
-
-                task.StepFeedbacks[request.StepNumber] = new StepFeedback
-                {
-                    IsValid = validateResponse.IsValid,
-                    Message = validateResponse.Message,
-                    Hint = validateResponse.Hint,
-                    Suggestions = validateResponse.Suggestions,
-                    ValidatedAt = DateTime.UtcNow
-                };
             }
 
-            validateResponse.StepFeedback = task.StepFeedbacks[request.StepNumber];
+            var stepFeedback = new StepFeedback
+            {
+                IsValid = validateResponse.IsValid,
+                Message = validateResponse.Message,
+                Hint = validateResponse.Hint ?? "",
+                Suggestions = validateResponse.Suggestions,
+                ValidatedAt = DateTime.UtcNow
+            };
+
+            validateResponse.StepFeedback = stepFeedback;
+
+            // Сохраняем ответ ассистента
+            var assistantMessage = new ChatMessage(
+                "assistant",
+                validateResponse.Message,
+                request.Code,
+                $"{language.Name} {language.Version}",
+                request.StepNumber,
+                validateResponse.IsValid,
+                JsonSerializer.Serialize(stepFeedback, _options));
+            
+            chat.Messages.Add(assistantMessage);
         }
+
+        await _unitOfWork.CommitAsync();
 
         return Ok(validateResponse ?? new ValidateStepResponse
         {
             IsValid = false,
             Message = "Не удалось проверить решение. Попробуйте еще раз.",
-            Suggestions = ["Убедитесь, что код компилируется", "Проверьте синтаксис"],
-            IsStepCompleted = false
+            Suggestions = new List<string> { "Убедитесь, что код компилируется", "Проверьте синтаксис" },
+            IsStepCompleted = false,
+            CurrentStep = request.StepNumber,
+            TotalSteps = task.Steps.Count
         });
     }
+
+    // ============== ВЫПОЛНЕНИЕ КОДА ==============
 
     [HttpPost("run")]
     public async Task<ActionResult<TestResult>> RunCode(
@@ -274,8 +522,30 @@ public sealed class ConstructorController : ControllerBase
 
         var result = await _codeRunner.RunTestsAsync(request.Code, language);
 
-        return result;
+        // Сохраняем результат выполнения в сообщение, если указан чат
+        if (request.ChatId != Guid.Empty && request.StepNumber.HasValue)
+        {
+            var executionMessage = new ChatMessage(
+                "system",
+                $"stderr: {result.Stderr}\nstdout: {result.Stdout}",
+                request.Code,
+                $"{language.Name} {language.Version}",
+                request.StepNumber,
+                null,
+                null);
+
+            var chat = (await _unitOfWork.TaskChats.GetAllAsync())
+                        .FirstOrDefault(c => c.Id == request.ChatId);
+
+
+            chat.Messages.Add(executionMessage);
+            await _unitOfWork.CommitAsync();
+        }
+
+        return Ok(result);
     }
+
+    // ============== ХЕЛПЕРЫ ==============
 
     private async Task<string> SendRequestAsync(string systemPrompt, string userPrompt)
     {
@@ -303,7 +573,7 @@ public sealed class ConstructorController : ControllerBase
     {
         var content = await SendRequestAsync(systemPrompt, userPrompt);
         var jsonContent = ExtractJsonFromResponse(content);
-     
+
         return JsonSerializer.Deserialize<T>(jsonContent, _options)!;
     }
 

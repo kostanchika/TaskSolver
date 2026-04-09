@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using TaskSolver.Core.Domain.Abstractions.Common;
 using TaskSolver.Core.Domain.Comments;
+using TaskSolver.Core.Domain.Constructor;
 using TaskSolver.Core.Domain.Marks;
 using TaskSolver.Core.Domain.Matches;
 using TaskSolver.Core.Domain.Profiles;
@@ -29,6 +30,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<UserStatistics> UserStatistics => Set<UserStatistics>();
     
     public DbSet<Match> Matches => Set<Match>();
+
+    public DbSet<TaskChat> TaskChats => Set<TaskChat>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

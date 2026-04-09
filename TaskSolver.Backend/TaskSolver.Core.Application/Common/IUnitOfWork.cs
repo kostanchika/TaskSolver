@@ -1,4 +1,5 @@
 ﻿using TaskSolver.Core.Application.Comments.Interfaces;
+using TaskSolver.Core.Application.Constructor.Interfaces;
 using TaskSolver.Core.Application.Marks.Interfaces;
 using TaskSolver.Core.Application.Matches.Interfaces;
 using TaskSolver.Core.Application.Profiles.Interfaces;
@@ -21,6 +22,7 @@ public interface IUnitOfWork
     ISolutionRepository Solutions { get; }
     IStatisticsRepository UserStatistics { get; }
     IMatchRepository Matches { get; }
+    ITaskChatRepository TaskChats { get; }
 
     Task CommitAsync(CancellationToken cancellationToken = default);
 }

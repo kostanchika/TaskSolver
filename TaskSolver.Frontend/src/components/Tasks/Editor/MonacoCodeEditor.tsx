@@ -78,6 +78,7 @@ export const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [copySuccess, setCopySuccess] = useState<boolean>(false);
 
   // Мемоизация текущего языка для Monaco
   const monacoLanguage = useMemo(
@@ -152,18 +153,7 @@ export const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
 
         const response = await programmingLanguagesApi.getAll();
 
-        // if (!task) {
-        //   setLanguages(response.data);
-        //   return;
-        // }
-
         let taskLanguages = response.data;
-
-        // if (task.languageExamples) {
-        //   taskLanguages = response.data.filter((l) =>
-        //     task.languageExamples?.map((e) => e.languageId).includes(l.id),
-        //   );
-        // }
 
         setLanguages(taskLanguages);
 
@@ -237,14 +227,19 @@ export const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
     }
   };
 
+  const handleCopyCode = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy code:', err);
+      setCopySuccess(false);
+    }
+  };
+
   const getStarterCode = (languageId: string): string => {
     if (!task) return '';
-
-    // const functionCode = task.languageExamples?.find(
-    //   (e) => e.languageId === languageId,
-    // )?.functionCode;
-
-    // if (functionCode) return functionCode;
 
     const lang = languages.find((l) => l.id === languageId);
     const langName = lang?.name.toLowerCase() || '';
@@ -424,7 +419,7 @@ export const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
               <select
                 value={language}
                 onChange={(e) => handleLanguageChange(e.target.value)}
-                className='bg-[#2d2d2d] border border-[#333333] rounded-lg px-4 py-2 text-white font-mono focus:outline-none focus:border-[#e85353] focus:ring-2 focus:ring-[#e85353] transition-colors flex-1 max-w-xs'
+                className='bg-[#2d2d2d] border border-[#333333] rounded-lg px-4 py-2 text-white font-mono focus:outline-none focus:border-[#e85353] focus:ring-2 focus:ring-[#e85353] transition-colors'
                 disabled={languages.length === 0}
               >
                 {languages.map((lang) => (
@@ -433,64 +428,111 @@ export const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
                   </option>
                 ))}
               </select>
-
-              {autoSave && (
-                <div className='flex items-center space-x-2 text-xs text-gray-400 font-mono'>
-                  {isSaving ? (
-                    <>
-                      <div className='w-3 h-3 border-2 border-[#e85353] border-t-transparent rounded-full animate-spin'></div>
-                      <span>Сохранение...</span>
-                    </>
-                  ) : lastSaved ? (
-                    <>
-                      <svg
-                        className='w-3 h-3 text-green-400'
-                        fill='none'
-                        stroke='currentColor'
-                        viewBox='0 0 24 24'
-                      >
-                        <path
-                          strokeLinecap='round'
-                          strokeLinejoin='round'
-                          strokeWidth={2}
-                          d='M5 13l4 4L19 7'
-                        />
-                      </svg>
-                      <span>Сохранено {lastSaved.toLocaleTimeString()}</span>
-                    </>
-                  ) : null}
-                </div>
-              )}
             </div>
 
-            {onSubmit && (
+            <div className='flex items-center space-x-3'>
+              {/* Кнопка копирования */}
               <button
-                onClick={handleSubmit}
-                disabled={!language || isSubmitting || !code}
-                className='px-6 py-2 bg-[#e85353] text-white rounded-lg hover:bg-[#d64242] disabled:bg-[#333333] disabled:cursor-not-allowed transition-colors font-mono border border-[#e85353] disabled:border-[#333333] whitespace-nowrap flex items-center space-x-2'
+                onClick={handleCopyCode}
+                disabled={!code}
+                className='px-4 py-2 bg-[#2d2d2d] border border-[#333333] text-gray-300 rounded-lg hover:bg-[#3a3a3a] hover:border-[#e85353] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-mono flex items-center space-x-2'
               >
-                {isSubmitting ? (
+                {copySuccess ? (
                   <>
-                    <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
-                    <span>Отправка...</span>
+                    <svg
+                      className='w-4 h-4 text-green-400'
+                      fill='none'
+                      stroke='currentColor'
+                      viewBox='0 0 24 24'
+                    >
+                      <path
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                        strokeWidth={2}
+                        d='M5 13l4 4L19 7'
+                      />
+                    </svg>
+                    <span className='text-sm'>Скопировано!</span>
                   </>
                 ) : (
                   <>
-                    <span>Отправить</span>
-                    <span className='text-xs text-gray-300 ml-2'>⌘⏎</span>
+                    <svg
+                      className='w-4 h-4'
+                      fill='none'
+                      stroke='currentColor'
+                      viewBox='0 0 24 24'
+                    >
+                      <path
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                        strokeWidth={2}
+                        d='M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z'
+                      />
+                    </svg>
+                    <span className='text-sm'>Копировать</span>
                   </>
                 )}
               </button>
-            )}
+
+              {/* Кнопка отправки */}
+              {onSubmit && (
+                <button
+                  onClick={handleSubmit}
+                  disabled={!language || isSubmitting || !code}
+                  className='px-6 py-2 bg-[#e85353] text-white rounded-lg hover:bg-[#d64242] disabled:bg-[#333333] disabled:cursor-not-allowed transition-colors font-mono border border-[#e85353] disabled:border-[#333333] whitespace-nowrap flex items-center space-x-2'
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
+                      <span>Отправка...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Отправить</span>
+                      <span className='text-xs text-gray-300 ml-2'>⌘⏎</span>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
           </div>
 
-          {language && (
-            <div className='mt-2 flex items-center justify-between'>
+          {/* Индикатор сохранения и счетчик символов */}
+          <div className='mt-3 flex items-center justify-between'>
+            {autoSave && (
+              <div className='flex items-center space-x-2 text-xs text-gray-400 font-mono'>
+                {isSaving ? (
+                  <>
+                    <div className='w-3 h-3 border-2 border-[#e85353] border-t-transparent rounded-full animate-spin'></div>
+                    <span>Сохранение...</span>
+                  </>
+                ) : lastSaved ? (
+                  <>
+                    <svg
+                      className='w-3 h-3 text-green-400'
+                      fill='none'
+                      stroke='currentColor'
+                      viewBox='0 0 24 24'
+                    >
+                      <path
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                        strokeWidth={2}
+                        d='M5 13l4 4L19 7'
+                      />
+                    </svg>
+                    <span>Сохранено {lastSaved.toLocaleTimeString()}</span>
+                  </>
+                ) : null}
+              </div>
+            )}
+
+            {language && (
               <div className='text-xs text-gray-500 font-mono'>
                 {code.length} символов
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
 

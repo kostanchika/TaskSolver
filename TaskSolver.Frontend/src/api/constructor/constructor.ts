@@ -1,11 +1,14 @@
+// api/constructor/constructor.ts
 import axios from '../axios';
 import {
   GeneratedTask,
   ValidateStepRequest,
   ValidateStepResponse,
   RunCodeRequest,
+  ChatResponse,
+  ChatDetailResponse,
+  CreateChatRequest,
 } from './types';
-import { TestResult } from '../solutions/types';
 
 const api = axios.create({
   baseURL: axios.defaults.baseURL + '/api/constructor',
@@ -92,15 +95,21 @@ api.interceptors.response.use(
 );
 
 export const constructorApi = {
-  generateTask: (params: { theme: string; difficulty: string }) =>
-    api.post<GeneratedTask>('/generate', params),
+  // Чаты
+  getChats: () => api.get<ChatResponse[]>('/chats'),
+  getChat: (chatId: string) => api.get<ChatDetailResponse>(`/chats/${chatId}`),
+  createChat: (request: CreateChatRequest) =>
+    api.post<string>('/chats', request),
+  deleteChat: (chatId: string) => api.delete(`/chats/${chatId}`),
+  archiveChat: (chatId: string) => api.patch(`/chats/${chatId}/archive`),
 
-  getCurrentTask: () => api.get<GeneratedTask>('/current'),
-
-  deleteCurrentTask: () => api.delete('/current'),
-
+  // Генерация и проверка
+  generateTask: (params: {
+    theme: string;
+    difficulty: string;
+    chatId?: string;
+  }) => api.post<GeneratedTask>('/generate', params),
   validateStep: (request: ValidateStepRequest) =>
     api.post<ValidateStepResponse>('/validate-step', request),
-
   runCode: (request: RunCodeRequest) => api.post<TestResult>('/run', request),
 };

@@ -1,30 +1,21 @@
-export type StepType = 0 | 1 | 2 | 3 | 4 | 5;
-
-export interface TaskStep {
+// api/constructor/types.ts
+export interface Step {
   order: number;
   title: string;
   description: string;
   hint: string;
-  type: StepType;
-  isCompleted: boolean;
-}
-
-export interface CodeSnippet {
-  language: string;
-  code: string;
-  description: string;
+  type: number;
+  isCompleted?: boolean;
 }
 
 export interface GeneratedTask {
-  id: string;
   title: string;
+  description: string;
   theme: string;
   difficulty: string;
-  description: string;
-  steps: TaskStep[];
+  steps: Step[];
   lastCompletedStep: number;
-  stepFeedbacks: Record<number, StepFeedback>;
-  createdAt: string;
+  stepFeedbacks?: Record<number, StepFeedback>;
 }
 
 export interface StepFeedback {
@@ -39,36 +30,66 @@ export interface ValidateStepRequest {
   code: string;
   languageCode: string;
   stepNumber: number;
+  chatId: string;
 }
 
 export interface ValidateStepResponse {
   isValid: boolean;
   message: string;
-  hint: string;
+  hint?: string;
   suggestions: string[];
-  currentStep: number;
-  totalSteps: number;
   isStepCompleted: boolean;
   isTaskCompleted: boolean;
-  nextStepDescription: string;
-  stepFeedback: StepFeedback;
+  currentStep: number;
+  totalSteps: number;
+  nextStepDescription?: string;
+  stepFeedback?: StepFeedback;
 }
 
 export interface RunCodeRequest {
   code: string;
   languageId: string;
+  chatId: string;
+  stepNumber?: number;
 }
 
-export interface TestCaseResult {
-  name: string;
-  passed: boolean;
-  expected: string;
-  actual: string;
-  error?: string;
+export interface TestResult {
+  stdout: string;
+  stderr: string;
+  isSolved: boolean;
 }
 
-export interface GetHintRequest {
-  stepNumber: number;
-  currentCode: string;
-  languageCode: string;
+export interface ChatResponse {
+  id: string;
+  title: string;
+  theme: string;
+  difficulty: string;
+  lastCompletedStep: number;
+  totalSteps: number;
+  updatedAt: string;
+  isArchived: boolean;
+}
+
+export interface ChatDetailResponse {
+  chat: ChatResponse;
+  task: GeneratedTask;
+  messages: ChatMessage[];
+}
+
+export interface ChatMessage {
+  id: string;
+  chatId: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  code?: string;
+  language?: string;
+  stepNumber?: number;
+  isValid?: boolean;
+  feedback?: string;
+  createdAt: string;
+}
+
+export interface CreateChatRequest {
+  theme: string;
+  difficulty: string;
 }

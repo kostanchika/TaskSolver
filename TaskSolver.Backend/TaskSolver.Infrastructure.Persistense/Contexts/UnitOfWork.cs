@@ -1,6 +1,7 @@
 ﻿using TaskSolver.Core.Application.Comments.Interfaces;
 using TaskSolver.Core.Application.Common;
 using TaskSolver.Core.Application.Common.Interfaces;
+using TaskSolver.Core.Application.Constructor.Interfaces;
 using TaskSolver.Core.Application.Marks.Interfaces;
 using TaskSolver.Core.Application.Matches.Interfaces;
 using TaskSolver.Core.Application.Profiles.Interfaces;
@@ -34,6 +35,8 @@ public sealed class UnitOfWork(
 
     private IMatchRepository _matchRepository = null!;
 
+    private ITaskChatRepository _taskChatRepository = null!;
+
     public IUserRepository Users => _users ??= new UserRepository(context);
 
     public IProfileRepository Profiles => _profiles ??= new ProfileRepository(context);
@@ -48,6 +51,8 @@ public sealed class UnitOfWork(
     public IStatisticsRepository UserStatistics => _statisticsRepository ??= new StatisticsRepository(context);
 
     public IMatchRepository Matches => _matchRepository ??= new MatchRepository(context);
+
+    public ITaskChatRepository TaskChats => _taskChatRepository ??= new TaskChatRepository(context);
 
     public async Task CommitAsync(CancellationToken cancellationToken = default)
     {
