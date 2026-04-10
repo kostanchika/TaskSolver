@@ -1,4 +1,4 @@
-﻿using System.Net.Http.Json;
+using System.Net.Http.Json;
 using System.Text.Json;
 using TaskSolver.Core.Application.Solutions.Interfaces;
 using TaskSolver.Core.Domain.ProgrammingLanguages;
@@ -71,12 +71,16 @@ public sealed class ExternalCodeRunner(
         return results;
     }
 
-    public async Task<TestResult> RunTestsAsync(string code, ProgrammingLanguage language, CancellationToken cancellationToken = default)
+    public async Task<TestResult> RunTestsAsync(
+        string code,
+        ProgrammingLanguage language,
+        string? standardInput = null,
+        CancellationToken cancellationToken = default)
     {
         var payload = new
         {
             code,
-            Input = "NULL",
+            Input = standardInput ?? string.Empty,
             Language = language.Name,
             language!.Interpretor,
             language!.FileExtension,

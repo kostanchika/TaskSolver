@@ -51,6 +51,8 @@ export interface RunCodeRequest {
   languageId: string;
   chatId: string;
   stepNumber?: number;
+  /** Текст в stdin при запуске */
+  stdin?: string;
 }
 
 export interface TestResult {
@@ -72,7 +74,7 @@ export interface ChatResponse {
 
 export interface ChatDetailResponse {
   chat: ChatResponse;
-  task: GeneratedTask;
+  task: GeneratedTask | null;
   messages: ChatMessage[];
 }
 
@@ -86,6 +88,10 @@ export interface ChatMessage {
   stepNumber?: number;
   isValid?: boolean;
   feedback?: string;
+  messageKind?: string | null;
+  programStdin?: string | null;
+  programStdout?: string | null;
+  programStderr?: string | null;
   createdAt: string;
 }
 

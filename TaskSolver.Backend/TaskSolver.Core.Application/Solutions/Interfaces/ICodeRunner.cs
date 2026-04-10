@@ -1,4 +1,4 @@
-﻿using TaskSolver.Core.Domain.ProgrammingLanguages;
+using TaskSolver.Core.Domain.ProgrammingLanguages;
 using TaskSolver.Core.Domain.Solutions;
 using TaskSolver.Core.Domain.Tasks;
 
@@ -9,6 +9,7 @@ public interface ICodeRunner
     Task<TestResult> RunTestsAsync(
         string code,
         ProgrammingLanguage language,
+        string? standardInput = null,
         CancellationToken cancellationToken = default);
 
     Task<IEnumerable<TestResult>> RunTestsAsync(

@@ -73,7 +73,6 @@ export const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
   const [code, setCode] = useState<string>('');
   const [language, setLanguage] = useState<string>('');
   const [languages, setLanguages] = useState<ProgrammingLanguageDto[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -148,7 +147,7 @@ export const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
   useEffect(() => {
     const loadLanguages = async () => {
       try {
-        setIsLoading(true);
+        // setIsLoading(true);
         setError(null);
 
         const response = await programmingLanguagesApi.getAll();
@@ -171,16 +170,16 @@ export const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
         console.error('Error loading languages:', err);
         setError('Не удалось загрузить языки программирования');
       } finally {
-        setIsLoading(false);
+        // setIsLoading(false);
       }
     };
 
     loadLanguages();
-  }, [task]);
+  }, [task?.id]);
 
   // Load code from localStorage when language changes
   useEffect(() => {
-    if (task && language && !isLoading) {
+    if (task && language) {
       const savedCode = localStorage.getItem(`task:${task.id}:${language}`);
 
       if (savedCode) {
@@ -191,11 +190,11 @@ export const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
         setCode(starterCode);
       }
     }
-  }, [task, language, isLoading]);
+  }, [task, language]);
 
   // Auto-save code to localStorage
   useEffect(() => {
-    if (!autoSave || !language || !code || isLoading) return;
+    if (!autoSave || !language || !code) return;
 
     const saveTimeout = setTimeout(() => {
       setIsSaving(true);
@@ -205,7 +204,7 @@ export const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
     }, 1000);
 
     return () => clearTimeout(saveTimeout);
-  }, [code, task, language, autoSave, isLoading]);
+  }, [code, task, language, autoSave]);
 
   // Save selected language
   useEffect(() => {
@@ -373,23 +372,23 @@ export const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
     monaco.editor.setTheme('custom-dark');
   };
 
-  if (isLoading) {
-    return (
-      <div className='bg-[#2a2a2a] rounded-xl border border-[#333333] shadow-lg overflow-hidden'>
-        {showControls && (
-          <div className='bg-[#2d2d2d] px-6 py-4 border-b border-[#333333]'>
-            <div className='h-8 w-48 bg-[#333333] animate-pulse rounded'></div>
-          </div>
-        )}
-        <div className='h-[500px] bg-[#252525] flex items-center justify-center'>
-          <div className='text-center'>
-            <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-[#e85353] mx-auto'></div>
-            <p className='mt-2 text-gray-400'>Загрузка редактора...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // if (isLoading) {
+  //   return (
+  //     <div className='bg-[#2a2a2a] rounded-xl border border-[#333333] shadow-lg overflow-hidden'>
+  //       {showControls && (
+  //         <div className='bg-[#2d2d2d] px-6 py-4 border-b border-[#333333]'>
+  //           <div className='h-8 w-48 bg-[#333333] animate-pulse rounded'></div>
+  //         </div>
+  //       )}
+  //       <div className='h-[500px] bg-[#252525] flex items-center justify-center'>
+  //         <div className='text-center'>
+  //           <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-[#e85353] mx-auto'></div>
+  //           <p className='mt-2 text-gray-400'>Загрузка редактора...</p>
+  //         </div>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   if (error) {
     return (

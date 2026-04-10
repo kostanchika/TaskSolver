@@ -1,6 +1,6 @@
-// pages/ConstructorPage.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, FormEvent, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
 import { MonacoCodeEditor } from '../Tasks/Editor/MonacoCodeEditor';
 import { constructorApi } from '../../api/constructor/constructor';
 import {
@@ -17,7 +17,7 @@ interface ExecutionResult {
   isSolved: boolean;
 }
 
-const STEP_TYPE_NAMES = {
+const STEP_TYPE_NAMES: Record<number, string> = {
   0: 'Генерация данных',
   1: 'Валидация',
   2: 'Обработка',
@@ -26,80 +26,144 @@ const STEP_TYPE_NAMES = {
   5: 'Документация',
 };
 
-const formatText = (text: string) => {
-  if (!text) return null;
+function ChatMessageBubble({ message }: { message: ChatMessage }) {
+  const kind = message.messageKind ?? undefined;
 
-  const parts = [];
-  let lastIndex = 0;
-  const regex = /(\*\*[^*]+\*\*|`[^`]+`)/g;
-  let match;
+  if (message.role === 'system' || kind === 'code_run') {
+    const hasStructuredIo =
+      message.programStdout != null ||
+      message.programStderr != null ||
+      message.programStdin != null;
 
-  while ((match = regex.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push({
-        type: 'text',
-        content: text.slice(lastIndex, match.index),
-      });
-    }
-
-    const matched = match[0];
-    if (matched.startsWith('**') && matched.endsWith('**')) {
-      parts.push({
-        type: 'bold',
-        content: matched.slice(2, -2),
-      });
-    } else if (matched.startsWith('`') && matched.endsWith('`')) {
-      parts.push({
-        type: 'code',
-        content: matched.slice(1, -1),
-      });
-    }
-
-    lastIndex = match.index + matched.length;
+    return (
+      <div className='rounded-xl bg-[#121820] border border-cyan-900/40 p-3 text-xs font-mono space-y-3'>
+        <div className='flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wide text-cyan-400/95'>
+          <span>Запуск кода</span>
+          {message.language && (
+            <span className='normal-case text-gray-400'>
+              {message.language}
+            </span>
+          )}
+          {message.stepNumber != null && (
+            <span className='normal-case text-gray-500'>
+              шаг {message.stepNumber}
+            </span>
+          )}
+        </div>
+        {message.code ? (
+          <div>
+            <div className='text-[10px] text-gray-500 mb-1'>Код</div>
+            <pre className='max-h-40 overflow-auto rounded-lg bg-black/50 p-2 text-[11px] text-gray-200 border border-white/5'>
+              {message.code}
+            </pre>
+          </div>
+        ) : null}
+        {hasStructuredIo ? (
+          <>
+            <div>
+              <div className='text-[10px] text-gray-500 mb-1'>Ввод (stdin)</div>
+              <pre className='max-h-24 overflow-auto rounded-lg bg-black/40 p-2 text-[11px] text-amber-100/90 border border-amber-900/30 whitespace-pre-wrap'>
+                {message.programStdin?.length
+                  ? message.programStdin
+                  : '— пусто —'}
+              </pre>
+            </div>
+            <div>
+              <div className='text-[10px] text-gray-500 mb-1'>
+                Вывод (stdout)
+              </div>
+              <pre className='max-h-36 overflow-auto rounded-lg bg-black/50 p-2 text-[11px] text-emerald-300/95 border border-emerald-900/25 whitespace-pre-wrap'>
+                {message.programStdout || '—'}
+              </pre>
+            </div>
+            <div>
+              <div className='text-[10px] text-gray-500 mb-1'>
+                Ошибки (stderr)
+              </div>
+              <pre className='max-h-28 overflow-auto rounded-lg bg-black/50 p-2 text-[11px] text-red-300/95 border border-red-900/30 whitespace-pre-wrap'>
+                {message.programStderr || '—'}
+              </pre>
+            </div>
+          </>
+        ) : (
+          <div>
+            <div className='text-[10px] text-gray-500 mb-1'>
+              Лог (старый формат)
+            </div>
+            <pre className='max-h-48 overflow-auto rounded-lg bg-black/45 p-2 text-[11px] text-gray-300 whitespace-pre-wrap'>
+              {message.content}
+            </pre>
+          </div>
+        )}
+      </div>
+    );
   }
 
-  if (lastIndex < text.length) {
-    parts.push({
-      type: 'text',
-      content: text.slice(lastIndex),
-    });
+  if (message.role === 'user') {
+    const label =
+      kind === 'user_step_code'
+        ? `Шаг ${message.stepNumber ?? '?'} · проверка кода`
+        : kind === 'user_request_task'
+          ? 'Запрос задачи'
+          : 'Ты';
+
+    return (
+      <div className='flex justify-end'>
+        <div className='max-w-[min(100%,32rem)] rounded-2xl bg-[#e85353]/15 border border-[#e85353]/35 px-4 py-3 shadow-lg'>
+          <div className='text-[10px] uppercase tracking-wide text-[#e85353]/90 mb-1.5'>
+            {label}
+          </div>
+          <div className='text-sm text-gray-100 whitespace-pre-wrap leading-relaxed'>
+            {message.content}
+          </div>
+          {message.code && (
+            <pre className='mt-3 text-xs bg-black/45 p-3 rounded-lg overflow-x-auto max-h-48 border border-white/5'>
+              {message.code}
+            </pre>
+          )}
+        </div>
+      </div>
+    );
   }
 
-  if (parts.length === 0) {
-    return text;
-  }
+  const isStepCheck = kind === 'step_validation';
 
   return (
-    <>
-      {parts.map((part, idx) => {
-        if (part.type === 'bold') {
-          return (
-            <strong key={idx} className='font-bold text-white'>
-              {part.content}
-            </strong>
-          );
-        }
-        if (part.type === 'code') {
-          return (
-            <code
-              key={idx}
-              className='bg-black/30 px-1.5 py-0.5 rounded text-green-400 font-mono text-xs'
-            >
-              {part.content}
-            </code>
-          );
-        }
-        return <span key={idx}>{part.content}</span>;
-      })}
-    </>
+    <div className='flex justify-start'>
+      <div className='max-w-[min(100%,36rem)] rounded-2xl bg-[#252525] border border-[#3a3a3a] px-4 py-3 shadow-lg'>
+        {isStepCheck && (
+          <div className='flex flex-wrap items-center gap-2 mb-2'>
+            <span className='text-[10px] px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-200 border border-amber-500/30'>
+              Проверка шага {message.stepNumber}
+            </span>
+            {message.isValid === true && (
+              <span className='text-[10px] text-emerald-400'>зачтено</span>
+            )}
+            {message.isValid === false && (
+              <span className='text-[10px] text-orange-300'>
+                можно улучшить
+              </span>
+            )}
+          </div>
+        )}
+        {!isStepCheck && kind === 'task_generated' && (
+          <div className='text-[10px] uppercase tracking-wide text-violet-300/90 mb-2'>
+            Задача для практики
+          </div>
+        )}
+        <div className='prose prose-invert prose-sm max-w-none prose-p:my-2 prose-pre:bg-black/40 prose-pre:border prose-pre:border-white/10'>
+          <ReactMarkdown>{message.content}</ReactMarkdown>
+        </div>
+      </div>
+    </div>
   );
-};
+}
 
-export const ConstructorPage = () => {
+const ConstructorPage = () => {
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [task, setTask] = useState<GeneratedTask | null>(null);
   const [currentChatId, setCurrentChatId] = useState<string>();
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [currentStep, setCurrentStep] = useState(1);
   const [code, setCode] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState('python');
@@ -108,15 +172,16 @@ export const ConstructorPage = () => {
     useState<ExecutionResult | null>(null);
   const [isValidating, setIsValidating] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
-  const [activeTab, setActiveTab] = useState<'feedback' | 'execution'>(
-    'feedback',
-  );
   const [stepFeedbacks, setStepFeedbacks] = useState<Map<number, StepFeedback>>(
     new Map(),
   );
   const [isHistoryOpen, setIsHistoryOpen] = useState(true);
+  const [chatInput, setChatInput] = useState('');
+  const [isSendingChat, setIsSendingChat] = useState(false);
+  const [runStdin, setRunStdin] = useState('');
 
   const navigate = useNavigate();
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   const [generationParams, setGenerationParams] = useState({
     theme: '',
@@ -126,70 +191,93 @@ export const ConstructorPage = () => {
   const difficulties = ['Легкая', 'Средняя', 'Сложная', 'Эксперт'];
 
   useEffect(() => {
-    // Не загружаем автоматически, ждем выбора пользователя
-  }, []);
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const applyTaskFromDetail = (
+    loadedTask: GeneratedTask | null,
+    msgs: ChatMessage[],
+  ) => {
+    setMessages(msgs);
+    if (!loadedTask) {
+      setTask(null);
+      setStepFeedbacks(new Map());
+      setFeedback(null);
+      setCurrentStep(1);
+      return;
+    }
+
+    setTask(loadedTask);
+    if (loadedTask.stepFeedbacks) {
+      const feedbacksMap = new Map<number, StepFeedback>();
+      Object.entries(loadedTask.stepFeedbacks).forEach(([step, fb]) => {
+        feedbacksMap.set(parseInt(step, 10), fb);
+      });
+      setStepFeedbacks(feedbacksMap);
+    } else {
+      setStepFeedbacks(new Map());
+    }
+
+    const nextStep = (loadedTask.lastCompletedStep || 0) + 1;
+    setCurrentStep(
+      nextStep <= loadedTask.steps.length ? nextStep : loadedTask.steps.length,
+    );
+
+    const lastUserCode = [...msgs]
+      .reverse()
+      .find((m) => m.role === 'user' && m.code);
+    if (lastUserCode?.code) {
+      setCode(lastUserCode.code);
+    }
+
+    const stepForFeedback =
+      nextStep <= loadedTask.steps.length ? nextStep : loadedTask.steps.length;
+    if (loadedTask.stepFeedbacks?.[stepForFeedback]) {
+      const savedFeedback = loadedTask.stepFeedbacks[stepForFeedback];
+      setFeedback({
+        isValid: savedFeedback.isValid,
+        message: savedFeedback.message,
+        hint: savedFeedback.hint,
+        suggestions: savedFeedback.suggestions,
+        currentStep: stepForFeedback,
+        totalSteps: loadedTask.steps.length,
+        isStepCompleted: false,
+        isTaskCompleted: false,
+        nextStepDescription: '',
+        stepFeedback: savedFeedback,
+      });
+    } else {
+      setFeedback(null);
+    }
+
+    setExecutionResult(null);
+  };
 
   const loadChat = async (chatId: string) => {
     try {
       const response = await constructorApi.getChat(chatId);
-      const { chat, task: loadedTask, messages } = response.data;
+      const { chat, task: loadedTask, messages: msgs } = response.data;
 
-      setTask(loadedTask);
+      if (loadedTask) {
+        loadedTask.lastCompletedStep = chat.lastCompletedStep;
+      }
+
       setCurrentChatId(chat.id);
-
-      // Восстанавливаем обратные связи
-      if (loadedTask.stepFeedbacks) {
-        const feedbacksMap = new Map();
-        Object.entries(loadedTask.stepFeedbacks).forEach(([step, fb]) => {
-          feedbacksMap.set(parseInt(step), fb);
-        });
-        setStepFeedbacks(feedbacksMap);
-      }
-
-      // Определяем текущий шаг
-      const nextStep = (loadedTask.lastCompletedStep || 0) + 1;
-      setCurrentStep(
-        nextStep <= loadedTask.steps.length
-          ? nextStep
-          : loadedTask.steps.length,
-      );
-
-      // Если есть последнее сообщение с кодом, восстанавливаем его
-      const lastUserCode = messages
-        .filter((m) => m.role === 'user' && m.code)
-        .pop();
-      if (lastUserCode?.code) {
-        setCode(lastUserCode.code);
-        if (lastUserCode.language) {
-          setSelectedLanguage(lastUserCode.language.toLowerCase());
-        }
-      }
-
-      // Восстанавливаем обратную связь для текущего шага
-      if (loadedTask.stepFeedbacks?.[nextStep]) {
-        const savedFeedback = loadedTask.stepFeedbacks[nextStep];
-        setFeedback({
-          isValid: savedFeedback.isValid,
-          message: savedFeedback.message,
-          hint: savedFeedback.hint,
-          suggestions: savedFeedback.suggestions,
-          currentStep: nextStep,
-          totalSteps: loadedTask.steps.length,
-          isStepCompleted: false,
-          isTaskCompleted: false,
-          nextStepDescription: '',
-          stepFeedback: savedFeedback,
-        });
-      } else {
-        setFeedback(null);
-      }
-
-      setExecutionResult(null);
-      setActiveTab('feedback');
+      setGenerationParams({
+        theme: chat.theme,
+        difficulty: chat.difficulty,
+      });
+      applyTaskFromDetail(loadedTask, msgs);
     } catch (error) {
       console.error('Error loading chat:', error);
       alert('Ошибка при загрузке чата');
     }
+  };
+
+  const refreshSession = async () => {
+    if (!currentChatId) return;
+    const response = await constructorApi.getChat(currentChatId);
+    applyTaskFromDetail(response.data.task, response.data.messages);
   };
 
   const handleNewChat = () => {
@@ -200,12 +288,14 @@ export const ConstructorPage = () => {
     setExecutionResult(null);
     setCode('');
     setStepFeedbacks(new Map());
+    setMessages([]);
+    setChatInput('');
     setGenerationParams({ theme: '', difficulty: 'Средняя' });
   };
 
   const handleGenerateTask = async () => {
     if (!generationParams.theme.trim()) {
-      alert('Введите тему задачи');
+      alert('Введите тему');
       return;
     }
 
@@ -214,7 +304,6 @@ export const ConstructorPage = () => {
       let chatId = currentChatId;
 
       if (!chatId) {
-        // Создаем новый чат
         const createResponse = await constructorApi.createChat({
           theme: generationParams.theme,
           difficulty: generationParams.difficulty,
@@ -223,18 +312,14 @@ export const ConstructorPage = () => {
         setCurrentChatId(chatId);
       }
 
-      const response = await constructorApi.generateTask({
+      await constructorApi.generateTask({
         theme: generationParams.theme,
         difficulty: generationParams.difficulty,
         chatId,
       });
 
-      setTask(response.data);
-      setCurrentStep(1);
-      setFeedback(null);
-      setExecutionResult(null);
-      setActiveTab('feedback');
-      setStepFeedbacks(new Map());
+      const detail = await constructorApi.getChat(chatId);
+      applyTaskFromDetail(detail.data.task, detail.data.messages);
     } catch (error) {
       console.error('Error generating task:', error);
       alert('Ошибка при генерации задачи');
@@ -243,10 +328,30 @@ export const ConstructorPage = () => {
     }
   };
 
+  const handleSendChat = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!currentChatId || !chatInput.trim() || isSendingChat) return;
+
+    setIsSendingChat(true);
+    try {
+      const response = await constructorApi.sendChatMessage(currentChatId, {
+        content: chatInput.trim(),
+      });
+      setChatInput('');
+      applyTaskFromDetail(response.data.task, response.data.messages);
+    } catch (error) {
+      console.error('Error sending message:', error);
+      alert('Не удалось отправить сообщение');
+    } finally {
+      setIsSendingChat(false);
+    }
+  };
+
   const handleValidateStep = async () => {
     if (!task || !currentChatId) return;
 
     setIsValidating(true);
+
     try {
       const response = await constructorApi.validateStep({
         code,
@@ -256,7 +361,6 @@ export const ConstructorPage = () => {
       });
 
       setFeedback(response.data);
-      setActiveTab('feedback');
 
       if (response.data.stepFeedback) {
         setStepFeedbacks((prev) =>
@@ -277,10 +381,14 @@ export const ConstructorPage = () => {
 
         if (response.data.isTaskCompleted) {
           setTimeout(() => {
-            alert('🎉 Поздравляем! Вы успешно завершили задачу! 🎉');
-          }, 500);
+            alert(
+              'Задача пройдена по шагам. Можешь продолжить общаться в чате.',
+            );
+          }, 400);
         }
       }
+
+      await refreshSession();
     } catch (error) {
       console.error('Error validating step:', error);
       alert('Ошибка при проверке шага');
@@ -289,22 +397,23 @@ export const ConstructorPage = () => {
     }
   };
 
-  const handleRunCode = async (code: string, languageId: string) => {
-    if (!task || !currentChatId) return;
+  const handleRunCode = async (runCode: string, languageId: string) => {
+    if (!currentChatId) return;
 
     setIsRunning(true);
     setExecutionResult(null);
 
     try {
       const response = await constructorApi.runCode({
-        code,
+        code: runCode,
         languageId,
         chatId: currentChatId,
-        stepNumber: currentStep,
+        stepNumber: task ? currentStep : undefined,
+        stdin: runStdin.length > 0 ? runStdin : undefined,
       });
 
       setExecutionResult(response.data);
-      setActiveTab('execution');
+      await refreshSession();
     } catch (error) {
       console.error('Error running code:', error);
       alert('Ошибка при выполнении кода');
@@ -314,9 +423,10 @@ export const ConstructorPage = () => {
   };
 
   const goToStep = (stepOrder: number) => {
+    if (!task) return;
     setCurrentStep(stepOrder);
     const savedFeedback = stepFeedbacks.get(stepOrder);
-    if (savedFeedback && task) {
+    if (savedFeedback) {
       setFeedback({
         isValid: savedFeedback.isValid,
         message: savedFeedback.message,
@@ -338,35 +448,38 @@ export const ConstructorPage = () => {
   };
 
   const getDifficultyColor = (difficulty: string) => {
-    const colors = {
+    const colors: Record<string, string> = {
       Легкая: 'text-emerald-400',
       Средняя: 'text-yellow-400',
       Сложная: 'text-orange-400',
       Эксперт: 'text-red-400',
     };
-    return colors[difficulty as keyof typeof colors] || 'text-gray-400';
+    return colors[difficulty] || 'text-gray-400';
   };
 
   const getDifficultyBgColor = (difficulty: string) => {
-    const colors = {
+    const colors: Record<string, string> = {
       Легкая: 'bg-emerald-500/20 border-emerald-500/50',
       Средняя: 'bg-yellow-500/20 border-yellow-500/50',
       Сложная: 'bg-orange-500/20 border-orange-500/50',
       Эксперт: 'bg-red-500/20 border-red-500/50',
     };
-    return (
-      colors[difficulty as keyof typeof colors] ||
-      'bg-gray-500/20 border-gray-500/50'
-    );
+    return colors[difficulty] || 'bg-gray-500/20 border-gray-500/50';
   };
 
-  const getStepStatusIcon = (step: any) => {
+  const getStepStatusIcon = (step: {
+    order: number;
+    isCompleted?: boolean;
+  }) => {
     if (step.isCompleted) return '✓';
     if (step.order === currentStep) return '●';
-    return step.order;
+    return String(step.order);
   };
 
-  const getStepStatusColor = (step: any) => {
+  const getStepStatusColor = (step: {
+    order: number;
+    isCompleted?: boolean;
+  }) => {
     if (step.isCompleted) return 'bg-green-500 text-white';
     if (step.order === currentStep)
       return 'bg-[#e85353] text-white ring-2 ring-[#e85353]/50';
@@ -382,14 +495,142 @@ export const ConstructorPage = () => {
     );
   };
 
+  const renderGenerationForm = (compact = false) => (
+    <div
+      className={`bg-[#2a2a2a]/95 backdrop-blur-sm rounded-2xl border border-[#333333] shadow-2xl p-6 ${compact ? '' : 'max-w-2xl mx-auto'} animate-fadeIn`}
+    >
+      <div className={`${compact ? 'mb-4' : 'text-center mb-8'}`}>
+        <h2 className='text-xl font-bold text-white font-mono mb-1'>
+          Тема и сложность
+        </h2>
+        <p className='text-gray-400 font-mono text-sm'>
+          ИИ предложит задачу и дорожную карту — в чате можно свободно разбирать
+          тему, шаги проверяются только по кнопке «Проверить шаг».
+        </p>
+      </div>
+
+      <div className='space-y-4'>
+        <div>
+          <label className='block text-sm font-medium text-gray-400 font-mono mb-2'>
+            Тема
+          </label>
+          <input
+            type='text'
+            value={generationParams.theme}
+            onChange={(e) =>
+              setGenerationParams((prev) => ({
+                ...prev,
+                theme: e.target.value,
+              }))
+            }
+            placeholder='Например: списки, файлы, REST API…'
+            className='w-full bg-[#333333] border border-[#444444] rounded-lg px-4 py-3 text-white font-mono focus:outline-none focus:border-[#e85353] focus:ring-1 focus:ring-[#e85353] transition-all'
+          />
+        </div>
+
+        <div>
+          <label className='block text-sm font-medium text-gray-400 font-mono mb-2'>
+            Сложность
+          </label>
+          <div className='flex gap-2 flex-wrap'>
+            {difficulties.map((diff) => (
+              <button
+                key={diff}
+                type='button'
+                onClick={() =>
+                  setGenerationParams((prev) => ({ ...prev, difficulty: diff }))
+                }
+                className={`px-4 py-2 rounded-lg border font-mono transition-all ${
+                  generationParams.difficulty === diff
+                    ? `${getDifficultyBgColor(diff)} ${getDifficultyColor(diff)} shadow-lg scale-105`
+                    : 'bg-[#333333] border-[#444444] text-gray-400 hover:border-[#e85353] hover:scale-105'
+                }`}
+              >
+                {diff}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <button
+          type='button'
+          onClick={handleGenerateTask}
+          disabled={isGenerating}
+          className='w-full bg-gradient-to-r from-[#e85353] to-[#d64242] hover:from-[#d64242] hover:to-[#c53535] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-lg transition-all font-mono flex items-center justify-center space-x-2 shadow-xl'
+        >
+          {isGenerating ? (
+            <>
+              <div className='w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin' />
+              <span>Генерация…</span>
+            </>
+          ) : (
+            <span>Сгенерировать задачу</span>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderChatColumn = (wrapperClass = '') => (
+    <div
+      className={`flex flex-col min-h-0 rounded-2xl border border-[#333] bg-[#1e1e1e]/90 overflow-hidden shadow-xl ${wrapperClass}`}
+    >
+      <div className='shrink-0 px-4 py-2.5 border-b border-[#333] bg-[#252525]'>
+        <h3 className='text-sm font-mono text-gray-200'>Чат с наставником</h3>
+        <p className='text-[11px] text-gray-500 mt-0.5 leading-snug'>
+          Слева только переписка — она может расти, панель кода не уезжает.
+        </p>
+      </div>
+      <div className='flex-1 min-h-0 overflow-y-auto p-4 space-y-4'>
+        {messages.length === 0 && (
+          <p className='text-gray-500 text-sm font-mono text-center py-8'>
+            Сообщений пока нет. Поздоровайся или спроси про тему.
+          </p>
+        )}
+        {messages.map((m) => (
+          <ChatMessageBubble key={m.id} message={m} />
+        ))}
+        <div ref={chatEndRef} />
+      </div>
+      <form
+        onSubmit={handleSendChat}
+        className='shrink-0 p-3 border-t border-[#333] bg-[#252525] flex gap-2'
+      >
+        <textarea
+          value={chatInput}
+          onChange={(e) => setChatInput(e.target.value)}
+          placeholder='Напиши сообщение…'
+          rows={2}
+          disabled={!currentChatId || isSendingChat}
+          className='flex-1 bg-[#333] border border-[#444] rounded-lg px-3 py-2 text-sm text-white font-mono resize-none focus:outline-none focus:border-[#e85353] disabled:opacity-50'
+        />
+        <button
+          type='submit'
+          disabled={!currentChatId || !chatInput.trim() || isSendingChat}
+          className='self-end px-4 py-2 rounded-lg bg-[#e85353] hover:bg-[#d64242] disabled:opacity-40 text-white font-mono text-sm'
+        >
+          {isSendingChat ? '…' : 'Отправить'}
+        </button>
+      </form>
+    </div>
+  );
+
+  const showWorkspace = !!task;
+  const showPreTaskWorkspace = !!currentChatId && !task;
+
+  const memoizedTask = useMemo(() => {
+    if (!currentChatId) return null;
+    return { id: currentChatId };
+  }, [currentChatId]);
+
   return (
     <div className='min-h-screen bg-gradient-to-br from-[#2a2a2a] to-[#1f1f1f] text-white'>
-      {/* Header */}
       <div className='border-b border-[#333333] bg-[#2a2a2a]/95 backdrop-blur-sm sticky top-0 z-10'>
-        <div className='max-w-7xl mx-auto px-6 py-4'>
+        <div className='max-w-[1600px] mx-auto px-6 py-4'>
           <div className='flex items-center justify-between'>
             <div className='flex items-center space-x-4'>
               <button
+                type='button'
                 onClick={() => navigate('/')}
                 className='flex items-center space-x-2 text-gray-400 hover:text-white transition-all font-mono group'
               >
@@ -408,19 +649,17 @@ export const ConstructorPage = () => {
                 </svg>
                 <span>На главную</span>
               </button>
-
-              <div className='h-6 w-px bg-[#333333]'></div>
-
+              <div className='h-6 w-px bg-[#333333]' />
               <h1 className='text-2xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent font-mono'>
-                🛠️ Конструктор задач
+                Конструктор
               </h1>
             </div>
           </div>
         </div>
       </div>
 
-      {/* History Sidebar */}
       <SessionHistory
+        key={currentChatId}
         currentChatId={currentChatId}
         onSelectChat={loadChat}
         onNewChat={handleNewChat}
@@ -428,424 +667,211 @@ export const ConstructorPage = () => {
         onToggle={() => setIsHistoryOpen(!isHistoryOpen)}
       />
 
-      {/* Main Content */}
       <div
         className={`transition-all duration-300 ${isHistoryOpen ? 'pl-96' : 'pl-0'}`}
       >
-        <div className='max-w-7xl mx-auto px-6 py-6'>
-          {!task ? (
-            <div className='bg-[#2a2a2a]/95 backdrop-blur-sm rounded-2xl border border-[#333333] shadow-2xl p-8 max-w-2xl mx-auto animate-fadeIn'>
-              <div className='text-center mb-8'>
-                <h2 className='text-3xl font-bold text-white font-mono mb-2'>
-                  Создать новую задачу
-                </h2>
-                <p className='text-gray-400 font-mono'>
-                  ИИ сгенерирует уникальную задачу специально для вас
-                </p>
-              </div>
+        <div className='max-w-[1600px] mx-auto px-6 py-6'>
+          {!showWorkspace &&
+            !showPreTaskWorkspace &&
+            renderGenerationForm(false)}
 
-              <div className='space-y-6'>
-                <div>
-                  <label className='block text-sm font-medium text-gray-400 font-mono mb-2'>
-                    Тема задачи
-                  </label>
-                  <input
-                    type='text'
-                    value={generationParams.theme}
-                    onChange={(e) =>
-                      setGenerationParams((prev) => ({
-                        ...prev,
-                        theme: e.target.value,
-                      }))
-                    }
-                    placeholder='Например: Обработка списков, Работа с файлами, API...'
-                    className='w-full bg-[#333333] border border-[#444444] rounded-lg px-4 py-3 text-white font-mono focus:outline-none focus:border-[#e85353] focus:ring-1 focus:ring-[#e85353] transition-all'
-                  />
-                </div>
-
-                <div>
-                  <label className='block text-sm font-medium text-gray-400 font-mono mb-2'>
-                    Сложность
-                  </label>
-                  <div className='flex gap-2 flex-wrap'>
-                    {difficulties.map((diff) => (
-                      <button
-                        key={diff}
-                        onClick={() =>
-                          setGenerationParams((prev) => ({
-                            ...prev,
-                            difficulty: diff,
-                          }))
-                        }
-                        className={`px-4 py-2 rounded-lg border font-mono transition-all ${
-                          generationParams.difficulty === diff
-                            ? getDifficultyBgColor(diff) +
-                              ' ' +
-                              getDifficultyColor(diff) +
-                              ' shadow-lg scale-105'
-                            : 'bg-[#333333] border-[#444444] text-gray-400 hover:border-[#e85353] hover:scale-105'
-                        }`}
-                      >
-                        {diff}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleGenerateTask}
-                  disabled={isGenerating}
-                  className='w-full bg-gradient-to-r from-[#e85353] to-[#d64242] hover:from-[#d64242] hover:to-[#c53535] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-4 px-6 rounded-lg transition-all font-mono text-lg flex items-center justify-center space-x-2 shadow-xl'
-                >
-                  {isGenerating ? (
-                    <>
-                      <div className='w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
-                      <span>Генерация задачи...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Сгенерировать задачу</span>
-                    </>
-                  )}
-                </button>
+          {showPreTaskWorkspace && (
+            <div className='grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fadeIn min-h-[min(px,calc(100vh-10rem))]'>
+              {renderChatColumn(
+                'min-h-0 h-[min(520px,calc(100vh-11rem))] lg:h-auto',
+              )}
+              <div className='min-h-0 flex flex-col'>
+                {renderGenerationForm(true)}
               </div>
             </div>
-          ) : (
-            <div className='grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn'>
-              {/* Левая колонка - информация о задаче */}
-              <div className='lg:col-span-1 space-y-6'>
-                <div className='bg-gradient-to-br from-[#2a2a2a] to-[#252525] rounded-2xl border border-[#333333] shadow-xl p-6'>
-                  <div className='flex items-start justify-between mb-4'>
-                    <div>
-                      <h2 className='text-xl font-bold text-white font-mono mb-2'>
-                        {task.title}
-                      </h2>
-                      <div className='flex items-center space-x-3'>
-                        <span
-                          className={`px-3 py-1 rounded-full border text-sm font-mono ${getDifficultyBgColor(task.difficulty)} ${getDifficultyColor(task.difficulty)}`}
-                        >
-                          {task.difficulty}
-                        </span>
-                        <span className='text-sm text-gray-400 font-mono'>
-                          {task.theme}
-                        </span>
-                      </div>
-                    </div>
-                    <div className='text-right'>
-                      <div className='text-2xl font-bold text-[#e85353]'>
-                        {task.lastCompletedStep || 0}/{task.steps.length}
-                      </div>
-                      <div className='text-xs text-gray-400 font-mono'>
-                        шагов выполнено
-                      </div>
-                    </div>
-                  </div>
+          )}
 
-                  <p className='text-gray-300 font-mono text-sm leading-relaxed'>
-                    {task.description}
-                  </p>
-
-                  <div className='mt-4'>
-                    <div className='h-2 bg-[#333333] rounded-full overflow-hidden'>
-                      <div
-                        className='h-full bg-gradient-to-r from-[#e85353] to-[#ff6b6b] transition-all duration-500'
-                        style={{
-                          width: `${((task.lastCompletedStep || 0) / task.steps.length) * 100}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Список шагов */}
-                <div className='bg-gradient-to-br from-[#2a2a2a] to-[#252525] rounded-2xl border border-[#333333] shadow-xl p-6'>
-                  <h3 className='text-lg font-bold text-white font-mono mb-4 flex items-center space-x-2'>
-                    <span>📋 Шаги решения</span>
-                  </h3>
-
-                  <div className='space-y-3'>
-                    {task.steps.map((step) => (
-                      <div
-                        key={step.order}
-                        onClick={() => goToStep(step.order)}
-                        className={`p-4 rounded-xl border transition-all cursor-pointer group ${
-                          step.order === currentStep
-                            ? 'border-[#e85353] bg-gradient-to-r from-[#e85353]/10 to-transparent shadow-lg'
-                            : step.isCompleted
-                              ? 'border-green-500/30 bg-green-500/5 hover:border-green-500/50'
-                              : 'border-[#333333] hover:border-[#e85353]/50 hover:bg-[#333333]/30'
-                        }`}
+          {showWorkspace && task && (
+            <div className='flex flex-col gap-4 animate-fadeIn min-h-0 h-[calc(200vh-7rem)]'>
+              <div className='shrink-0 rounded-2xl border border-[#333] bg-gradient-to-br from-[#2a2a2a] to-[#252525] p-3 sm:p-4 shadow-xl'>
+                <div className='flex flex-wrap items-start justify-between gap-3 mb-2'>
+                  <div className='min-w-0'>
+                    <h2 className='text-base sm:text-lg font-bold text-white font-mono truncate'>
+                      {task.title}
+                    </h2>
+                    <div className='flex flex-wrap items-center gap-2 mt-1'>
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full border text-xs font-mono ${getDifficultyBgColor(task.difficulty)} ${getDifficultyColor(task.difficulty)}`}
                       >
-                        <div className='flex items-start space-x-3'>
-                          <div
-                            className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all ${getStepStatusColor(step)}`}
-                          >
-                            {getStepStatusIcon(step)}
-                          </div>
-                          <div className='flex-1'>
-                            <div className='flex items-center space-x-2 mb-1 flex-wrap gap-1'>
-                              <span className='text-white font-mono font-medium'>
-                                {step.title}
-                              </span>
-                              <span className='text-xs px-2 py-0.5 rounded-full border bg-gradient-to-r inline-flex items-center space-x-1'>
-                                <span>{STEP_TYPE_NAMES[step.type]}</span>
-                              </span>
-                            </div>
-                            <p className='text-sm text-gray-400 font-mono line-clamp-2'>
-                              {step.description}
-                            </p>
-                          </div>
-                          {step.isCompleted && (
-                            <div className='text-green-400'>
-                              <svg
-                                className='w-5 h-5'
-                                fill='currentColor'
-                                viewBox='0 0 20 20'
-                              >
-                                <path
-                                  fillRule='evenodd'
-                                  d='M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z'
-                                  clipRule='evenodd'
-                                />
-                              </svg>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Правая колонка - редактор и результаты */}
-              <div className='lg:col-span-2 space-y-6'>
-                <div className='bg-gradient-to-br from-[#2a2a2a] to-[#252525] rounded-2xl border border-[#333333] shadow-xl p-6'>
-                  <div className='flex items-start justify-between mb-4'>
-                    <div className='flex-1'>
-                      <h3 className='text-lg font-bold text-white font-mono flex items-center space-x-2'>
-                        <span>Шаг {currentStep}</span>
-                        <span className='text-[#e85353]'>
-                          / {task.steps.length}
-                        </span>
-                      </h3>
-                      <p className='text-xl font-bold text-white mt-1'>
-                        {task.steps[currentStep - 1]?.title}
-                      </p>
-                      <p className='text-gray-400 font-mono text-sm mt-2'>
-                        {task.steps[currentStep - 1]?.description}
-                      </p>
-                      {task.steps[currentStep - 1]?.hint && (
-                        <div className='mt-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg'>
-                          <div className='text-xs text-blue-400 font-mono flex items-center space-x-1'>
-                            <span>💡</span>
-                            <span>Подсказка:</span>
-                          </div>
-                          <div className='text-sm text-gray-300 font-mono mt-1'>
-                            {task.steps[currentStep - 1]?.hint}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className='bg-[#1e1e1e] rounded-2xl border border-[#333333] shadow-xl overflow-hidden'>
-                  <MonacoCodeEditor
-                    task={task}
-                    height='400px'
-                    theme='vs-dark'
-                    onSubmit={handleRunCode}
-                    onCodeChanged={setCode}
-                    onLanguageChanged={setSelectedLanguage}
-                    autoSave={true}
-                  />
-                </div>
-
-                <div className='flex space-x-4'>
-                  <button
-                    onClick={handleValidateStep}
-                    disabled={!canValidateStep() || isValidating || isRunning}
-                    className='flex-1 bg-gradient-to-r from-[#e85353] to-[#d64242] hover:from-[#d64242] hover:to-[#c53535] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-xl transition-all font-mono flex items-center justify-center space-x-2 shadow-lg'
-                  >
-                    {isValidating ? (
-                      <>
-                        <div className='w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
-                        <span>Проверка...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>✓</span>
-                        <span>Проверить шаг</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                {/* Результаты */}
-                {(feedback || executionResult) && (
-                  <div className='bg-gradient-to-br from-[#2a2a2a] to-[#252525] rounded-2xl border border-[#333333] shadow-xl overflow-hidden'>
-                    <div className='flex border-b border-[#333333]'>
-                      <button
-                        onClick={() => setActiveTab('feedback')}
-                        className={`px-6 py-3 font-mono text-sm transition-all flex items-center space-x-2 ${
-                          activeTab === 'feedback'
-                            ? 'bg-gradient-to-r from-[#e85353]/10 to-transparent text-[#e85353] border-b-2 border-[#e85353]'
-                            : 'text-gray-400 hover:text-white hover:bg-[#333333]/30'
-                        }`}
-                      >
-                        <span>Обратная связь</span>
-                      </button>
-                      <button
-                        onClick={() => setActiveTab('execution')}
-                        className={`px-6 py-3 font-mono text-sm transition-all flex items-center space-x-2 ${
-                          activeTab === 'execution'
-                            ? 'bg-gradient-to-r from-[#e85353]/10 to-transparent text-[#e85353] border-b-2 border-[#e85353]'
-                            : 'text-gray-400 hover:text-white hover:bg-[#333333]/30'
-                        }`}
-                      >
-                        <span>Результат выполнения</span>
-                      </button>
-                    </div>
-
-                    <div className='p-6'>
-                      {activeTab === 'feedback' && feedback && (
-                        <div>
-                          <div className='mb-4 flex items-center justify-between'>
-                            <h4 className='text-md font-bold text-white font-mono'>
-                              Результат проверки
-                            </h4>
-                            {feedback.isValid ? (
-                              <span className='px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-sm font-mono flex items-center space-x-1'>
-                                <span>✓</span>
-                                <span>Решение верное</span>
-                              </span>
-                            ) : (
-                              <span className='px-3 py-1 bg-red-500/20 text-red-400 rounded-full text-sm font-mono flex items-center space-x-1'>
-                                <span>✗</span>
-                                <span>Требуются исправления</span>
-                              </span>
-                            )}
-                          </div>
-
-                          <div className='bg-[#333333]/50 rounded-xl p-4'>
-                            <div className='text-gray-300 font-mono text-sm mb-3 whitespace-pre-wrap'>
-                              {formatText(feedback.message)}
-                            </div>
-
-                            {feedback.suggestions.length > 0 && (
-                              <div className='mt-3'>
-                                <p className='text-sm font-mono text-gray-400 mb-2'>
-                                  💡 Предложения по улучшению:
-                                </p>
-                                <ul className='list-disc list-inside space-y-1'>
-                                  {feedback.suggestions.map(
-                                    (suggestion, index) => (
-                                      <li
-                                        key={index}
-                                        className='text-sm text-gray-300 font-mono'
-                                      >
-                                        {formatText(suggestion)}
-                                      </li>
-                                    ),
-                                  )}
-                                </ul>
-                              </div>
-                            )}
-
-                            {!feedback.isValid && feedback.hint && (
-                              <div className='mt-3 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg'>
-                                <div className='text-sm text-yellow-400 font-mono whitespace-pre-wrap'>
-                                  🔍 {formatText(feedback.hint)}
-                                </div>
-                              </div>
-                            )}
-
-                            {feedback.isStepCompleted && (
-                              <div className='mt-4 p-4 bg-green-500/10 border border-green-500/20 rounded-lg animate-pulse'>
-                                <p className='text-sm text-green-400 font-mono font-medium mb-2'>
-                                  ✅ Отлично! Шаг {currentStep} выполнен!
-                                </p>
-                                {feedback.nextStepDescription && (
-                                  <div className='text-sm text-gray-300 font-mono'>
-                                    📍 Следующий шаг:{' '}
-                                    {formatText(feedback.nextStepDescription)}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                            {feedback.isTaskCompleted && (
-                              <div className='mt-4 p-6 bg-purple-500/20 border border-purple-500/50 rounded-lg text-center animate-bounce'>
-                                <p className='text-3xl mb-2'>🎉🏆🎉</p>
-                                <p className='text-lg text-white font-mono font-bold'>
-                                  Поздравляем! Задача полностью решена!
-                                </p>
-                                <p className='text-sm text-gray-300 font-mono mt-2'>
-                                  Вы отлично справились! Продолжайте в том же
-                                  духе!
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {activeTab === 'execution' && executionResult && (
-                        <div>
-                          <h4 className='text-md font-bold text-white font-mono mb-3'>
-                            Результат выполнения
-                          </h4>
-
-                          <div className='space-y-3'>
-                            {executionResult.stdout && (
-                              <div className='bg-[#333333]/50 rounded-xl p-4'>
-                                <div className='text-gray-400 font-mono text-sm mb-2 flex items-center space-x-2'>
-                                  <span>📤</span>
-                                  <span>Вывод:</span>
-                                </div>
-                                <pre className='bg-black/30 p-4 rounded-lg text-sm text-green-400 font-mono overflow-x-auto whitespace-pre-wrap'>
-                                  {executionResult.stdout}
-                                </pre>
-                              </div>
-                            )}
-
-                            {executionResult.stderr && (
-                              <div className='bg-[#333333]/50 rounded-xl p-4'>
-                                <div className='text-gray-400 font-mono text-sm mb-2 flex items-center space-x-2'>
-                                  <span>⚠️</span>
-                                  <span>Ошибка:</span>
-                                </div>
-                                <pre className='bg-black/30 p-4 rounded-lg text-sm text-red-400 font-mono overflow-x-auto whitespace-pre-wrap'>
-                                  {executionResult.stderr}
-                                </pre>
-                              </div>
-                            )}
-
-                            {!executionResult.stdout &&
-                              !executionResult.stderr && (
-                                <div className='bg-[#333333]/50 rounded-xl p-8 text-center'>
-                                  <p className='text-gray-400 font-mono'>
-                                    ✨ Программа выполнилась без вывода
-                                  </p>
-                                </div>
-                              )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {isRunning && (
-                  <div className='bg-gradient-to-br from-[#2a2a2a] to-[#252525] rounded-2xl border border-[#333333] shadow-xl p-6'>
-                    <div className='flex items-center justify-center space-x-3 py-8'>
-                      <div className='w-6 h-6 border-2 border-[#e85353] border-t-transparent rounded-full animate-spin'></div>
-                      <span className='text-gray-400 font-mono'>
-                        Выполнение кода...
+                        {task.difficulty}
+                      </span>
+                      <span className='text-xs text-gray-400 font-mono truncate max-w-[12rem] sm:max-w-md'>
+                        {task.theme}
                       </span>
                     </div>
                   </div>
-                )}
+                  <div className='text-right shrink-0'>
+                    <div className='text-lg font-bold text-[#e85353]'>
+                      {task.lastCompletedStep || 0}/{task.steps.length}
+                    </div>
+                    <div className='text-[10px] text-gray-500 font-mono'>
+                      шагов
+                    </div>
+                  </div>
+                </div>
+                <p className='text-gray-300 font-mono text-xs sm:text-sm leading-relaxed line-clamp-3 sm:line-clamp-none max-w-4xl'>
+                  {task.description}
+                </p>
+                <div className='mt-2 h-1 bg-[#333] rounded-full overflow-hidden'>
+                  <div
+                    className='h-full bg-gradient-to-r from-[#e85353] to-[#ff6b6b] transition-all duration-500'
+                    style={{
+                      width: `${((task.lastCompletedStep || 0) / task.steps.length) * 100}%`,
+                    }}
+                  />
+                </div>
+                <div className='mt-3 pt-3 border-t border-[#333]'>
+                  <p className='text-[10px] uppercase tracking-wide text-gray-500 font-mono mb-1.5'>
+                    Шаги
+                  </p>
+                  <div className='flex gap-2 overflow-x-auto pb-1 -mx-1 px-1'>
+                    {task.steps.map((step) => (
+                      <button
+                        key={step.order}
+                        type='button'
+                        onClick={() => goToStep(step.order)}
+                        className={`flex-shrink-0 flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-left min-w-[120px] transition-all ${
+                          step.order === currentStep
+                            ? 'border-[#e85353] bg-[#e85353]/10'
+                            : step.isCompleted
+                              ? 'border-green-500/40 bg-green-500/5'
+                              : 'border-[#444] hover:border-[#e85353]/40'
+                        }`}
+                      >
+                        <div
+                          className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${getStepStatusColor(step)}`}
+                        >
+                          {getStepStatusIcon(step)}
+                        </div>
+                        <div className='min-w-0'>
+                          <div className='text-[11px] font-mono text-white truncate max-w-[100px]'>
+                            {step.title}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className='flex-1 min-h-[1500px] grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5'>
+                {renderChatColumn('min-h-0 h-full max-h-full')}
+
+                <div className='flex flex-col min-h-0 gap-3 h-full max-h-full overflow-hidden'>
+                  <div className='shrink-0 rounded-xl border border-[#333] bg-[#252525] p-3 overflow-y-auto'>
+                    <h3 className='text-xs font-mono text-[#e85353] mb-0.5'>
+                      Шаг {currentStep} / {task.steps.length}
+                    </h3>
+                    <p className='text-sm text-white font-medium leading-snug'>
+                      {task.steps[currentStep - 1]?.title}
+                    </p>
+                    <p className='text-gray-400 font-mono text-[11px] mt-1.5 leading-relaxed'>
+                      {task.steps[currentStep - 1]?.description}
+                    </p>
+                    {task.steps[currentStep - 1]?.hint && (
+                      <div className='mt-2 p-2 bg-blue-500/10 border border-blue-500/20 rounded-lg text-[11px] text-gray-300 font-mono'>
+                        Подсказка: {task.steps[currentStep - 1]?.hint}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className='shrink-0 min-h-[500px] h-[min(36vh,340px)] rounded-xl border border-[#333] bg-[#2a2a2a] overflow-hidden flex flex-col shadow-inner'>
+                    <MonacoCodeEditor
+                      task={memoizedTask}
+                      theme='vs-dark'
+                      onCodeChanged={setCode}
+                      onLanguageChanged={setSelectedLanguage}
+                      autoSave={true}
+                    />
+                  </div>
+
+                  <div className='shrink-0 rounded-xl border border-[#e85353]/25 bg-[#1f1f1f] p-3 space-y-3 shadow-lg'>
+                    <div>
+                      <label className='block text-[11px] font-mono text-gray-400 mb-1'>
+                        Ввод для программы (stdin)
+                      </label>
+                      <textarea
+                        value={runStdin}
+                        onChange={(e) => setRunStdin(e.target.value)}
+                        rows={2}
+                        placeholder='Что передать в stdin при запуске (можно пусто)'
+                        className='w-full bg-[#2d2d2d] border border-[#444] rounded-lg px-3 py-2 text-xs text-white font-mono resize-none focus:outline-none focus:border-[#e85353]'
+                      />
+                    </div>
+                    <div className='flex flex-wrap gap-2'>
+                      <button
+                        type='button'
+                        onClick={() =>
+                          void handleRunCode(code, selectedLanguage)
+                        }
+                        disabled={
+                          !currentChatId ||
+                          !code.trim() ||
+                          isRunning ||
+                          isValidating
+                        }
+                        className='flex-1 min-w-[8rem] py-2.5 px-4 rounded-lg bg-[#2d5a3d] hover:bg-[#356b4a] border border-green-700/50 disabled:opacity-40 text-white font-mono text-sm'
+                      >
+                        {isRunning ? 'Запуск…' : 'Запустить код'}
+                      </button>
+                      <button
+                        type='button'
+                        onClick={handleValidateStep}
+                        disabled={
+                          !canValidateStep() || isValidating || isRunning
+                        }
+                        className='flex-1 min-w-[8rem] py-2.5 px-4 rounded-lg bg-gradient-to-r from-[#e85353] to-[#d64242] hover:from-[#d64242] hover:to-[#c53535] disabled:opacity-50 text-white font-mono text-sm font-bold'
+                      >
+                        {isValidating ? 'Проверка…' : 'Проверить шаг'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {feedback && (
+                    <div className='shrink-0  overflow-y-auto rounded-lg border border-[#444] bg-[#222] p-3 text-sm'>
+                      <div className='flex items-center justify-between mb-1'>
+                        <span className='font-mono text-gray-500 text-[10px]'>
+                          Последняя проверка шага
+                        </span>
+                        {feedback.isValid ? (
+                          <span className='text-emerald-400 text-[10px]'>
+                            ок
+                          </span>
+                        ) : (
+                          <span className='text-orange-300 text-[10px]'>
+                            доработать
+                          </span>
+                        )}
+                      </div>
+                      <p className='text-gray-300 font-mono text-[11px] whitespace-pre-wrap leading-relaxed'>
+                        {feedback.message}
+                      </p>
+                    </div>
+                  )}
+
+                  {executionResult && (
+                    <div className='shrink-0 max-h-[18vh] overflow-y-auto rounded-lg border border-[#444] bg-[#1a1a1a] p-2 text-[11px] font-mono space-y-1'>
+                      <div className='text-gray-500 text-[10px]'>
+                        Быстрый просмотр последнего запуска
+                      </div>
+                      {executionResult.stdout ? (
+                        <pre className='text-emerald-400 whitespace-pre-wrap'>
+                          {executionResult.stdout}
+                        </pre>
+                      ) : null}
+                      {executionResult.stderr ? (
+                        <pre className='text-red-400 whitespace-pre-wrap'>
+                          {executionResult.stderr}
+                        </pre>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}

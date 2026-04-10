@@ -112,4 +112,6 @@ export const constructorApi = {
   validateStep: (request: ValidateStepRequest) =>
     api.post<ValidateStepResponse>('/validate-step', request),
   runCode: (request: RunCodeRequest) => api.post<TestResult>('/run', request),
+  sendChatMessage: (chatId: string, body: { content: string }) =>
+    api.post<ChatDetailResponse>(`/chats/${chatId}/messages`, body),
 };

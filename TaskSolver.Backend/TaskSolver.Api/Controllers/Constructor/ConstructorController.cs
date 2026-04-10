@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using System.Text.Json;
@@ -41,6 +41,8 @@ public class RunCodeRequest
     public Guid LanguageId { get; set; }
     public Guid ChatId { get; set; }
     public int? StepNumber { get; set; }
+    /// <summary>Текст, который будет передан в stdin процесса</summary>
+    public string? Stdin { get; set; }
 }
 
 public class ChatResponse
@@ -55,11 +57,34 @@ public class ChatResponse
     public bool IsArchived { get; set; }
 }
 
+public sealed class ChatMessageDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string ChatId { get; set; } = string.Empty;
+    public string Role { get; set; } = string.Empty;
+    public string Content { get; set; } = string.Empty;
+    public string? Code { get; set; }
+    public string? Language { get; set; }
+    public int? StepNumber { get; set; }
+    public bool? IsValid { get; set; }
+    public string? Feedback { get; set; }
+    public string? MessageKind { get; set; }
+    public string? ProgramStdin { get; set; }
+    public string? ProgramStdout { get; set; }
+    public string? ProgramStderr { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
 public class ChatDetailResponse
 {
     public ChatResponse Chat { get; set; } = null!;
-    public GeneratedTask Task { get; set; } = null!;
-    public List<ChatMessage> Messages { get; set; } = new();
+    public GeneratedTask? Task { get; set; }
+    public List<ChatMessageDto> Messages { get; set; } = new();
+}
+
+public sealed class SendChatMessageRequest
+{
+    public string Content { get; set; } = string.Empty;
 }
 
 public class ValidateStepResponse
@@ -155,37 +180,77 @@ public sealed class ConstructorController : ControllerBase
         if (chat == null)
             return NotFound("Чат не найден");
 
-        var messages = chat.Messages
-            .OrderBy(m => m.CreatedAt)
-            .ToList();
+        return Ok(BuildChatDetailResponse(chat));
+    }
 
-        var task = JsonSerializer.Deserialize<GeneratedTask>(chat.TaskData, _options)!;
+    [HttpPost("chats/{chatId}/messages")]
+    public async Task<ActionResult<ChatDetailResponse>> SendChatMessage(
+        Guid chatId,
+        [FromBody] SendChatMessageRequest request)
+    {
+        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var text = request.Content?.Trim();
+        if (string.IsNullOrEmpty(text))
+            return BadRequest("Введите текст сообщения");
 
-        task.StepFeedbacks = messages
-            .Where(m => m.Role == "assistant" && m.StepNumber.HasValue && m.Feedback != null)
-            .OrderByDescending(m => m.CreatedAt)
-            .DistinctBy(m => m.StepNumber!.Value)
-            .ToDictionary(
-                m => m.StepNumber!.Value,
-                m => JsonSerializer.Deserialize<StepFeedback>(m.Feedback!, _options)!
-            );
+        var chat = (await _unitOfWork.TaskChats.GetAllAsync())
+            .FirstOrDefault(c => c.Id == chatId && c.UserId == userId);
 
-        return Ok(new ChatDetailResponse
+        if (chat == null)
+            return NotFound("Чат не найден");
+
+        chat.Messages.Add(new ChatMessage(
+            "user",
+            text,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "user_chat"));
+        chat.UpdatedAt = DateTime.UtcNow;
+
+        GeneratedTask? task = null;
+        if (!string.IsNullOrWhiteSpace(chat.TaskData))
+            task = JsonSerializer.Deserialize<GeneratedTask>(chat.TaskData, _options);
+
+        var taskSummary = task == null
+            ? "Сгенерированная задача ещё не создана — опирайся на тему и сложность сессии."
+            : $"Текущая задача: «{task.Title}». Кратко: {task.Description}\nШаги (дорожная карта, не экзамен):\n" +
+              string.Join("\n", task.Steps.OrderBy(s => s.Order).Select(s => $"{s.Order}. {s.Title}: {s.Description}"));
+
+        var systemPrompt =
+            "Ты дружелюбный наставник по программированию. Пользователь ведёт сессию в режиме чата: он может задавать вопросы, просить объяснить тему или код, экспериментировать.\n" +
+            "Не дави и не требуй проходить шаги. Оценку «верно/неверно» по коду пользователь получает только через отдельную кнопку «Проверить шаг» — в этом чате помогай, объясняй, предлагай идеи.\n" +
+            "Отвечай по-русски. Можно markdown и короткие блоки кода.\n\n" +
+            $"Тема: {chat.Theme}. Сложность: {chat.Difficulty}.\n\n{taskSummary}";
+
+        var mistralMessages = BuildMistralChatMessages(chat, systemPrompt);
+        string reply;
+        try
         {
-            Chat = new ChatResponse
-            {
-                Id = chat.Id,
-                Title = chat.Title,
-                Theme = chat.Theme,
-                Difficulty = chat.Difficulty,
-                LastCompletedStep = chat.LastCompletedStep,
-                TotalSteps = task.Steps.Count,
-                UpdatedAt = chat.UpdatedAt,
-                IsArchived = chat.IsArchived
-            },
-            Task = task,
-            Messages = messages
-        });
+            reply = await SendChatCompletionMultiTurnAsync(mistralMessages);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Constructor chat Mistral failed");
+            reply = "Не удалось получить ответ от модели. Попробуйте ещё раз через минуту.";
+        }
+
+        chat.Messages.Add(new ChatMessage(
+            "assistant",
+            reply.Trim(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            "assistant_chat"));
+        chat.UpdatedAt = DateTime.UtcNow;
+
+        await _unitOfWork.CommitAsync();
+
+        return Ok(BuildChatDetailResponse(chat));
     }
 
     [HttpPost("chats")]
@@ -251,40 +316,38 @@ public sealed class ConstructorController : ControllerBase
         if (request.ChatId.HasValue)
         {
             var chat = (await _unitOfWork.TaskChats.GetAllAsync())
-                        .FirstOrDefault(c => c.Id == request.ChatId.Value && c.UserId == userId);
+                .FirstOrDefault(c => c.Id == request.ChatId.Value && c.UserId == userId);
 
-
-            var userMessage = new ChatMessage(
-                "user",
-                $"Создать задачу на тему '{request.Theme}' со сложностью '{request.Difficulty}'",
-                null,
-                null,
-                null,
-                null,
-                null);
-            
-            chat.Messages.Add(userMessage);
+            if (chat != null)
+            {
+                chat.Messages.Add(new ChatMessage(
+                    "user",
+                    $"Создать задачу на тему '{request.Theme}' со сложностью '{request.Difficulty}'",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "user_request_task"));
+                chat.UpdatedAt = DateTime.UtcNow;
+            }
         }
 
-        var systemPrompt = @"Ты - экспертный ИИ-конструктор задач по программированию. 
-        Твоя задача - создавать структурированные задачи с пошаговым решением для обучения программированию.
+        var systemPrompt = @"Ты — ИИ-наставник по программированию. Пользователь указал тему и сложность; ты предлагаешь практическую задачу и дорожную карту из шагов.
 
-        ВАЖНЫЕ ПРАВИЛА:
-        1. Задача должна быть разбита на 4-8 логических шагов (в зависимости от сложности и темы)
-        2. Каждый шаг должен иметь четкое описание и подсказку
-        3. Шаги должны идти от простого к сложному
-        4. Задача должна быть практической и решаемой
-        5. Пользователь может присылать решение на любом языке программирования
-        6. Для каждого шага ОБЯЗАТЕЛЬНО укажи корректный тип (используй числовые значения):
-           0 - DataGeneration (генерация/подготовка данных)
-           1 - Validation (валидация входных данных)
-           2 - Processing (основная обработка)
-           3 - Optimization (оптимизация решения)
-           4 - Testing (написание тестов)
-           5 - Documentation (документирование кода)
-        7. Задача НЕ ДОЛЖНА предполагать использование фреймворков
+        КОНТЕКСТ РЕЖИМА:
+        - Шаги — это рекомендуемый порядок работы, а не экзамен. Пользователь может свободно обсуждать тему в чате, задавать вопросы и не обязан сразу «сдавать» решения.
+        - Оценка «верно/неверно» выполняется только когда пользователь сам нажимает «Проверить шаг» в интерфейсе; в обычном чате ты помогаешь и объясняешь, без давления.
 
-        ФОРМАТ ОТВЕТА (строго JSON, без markdown и пояснений):
+        ПРАВИЛА ЗАДАЧИ:
+        1. 4–8 логических шагов (по сложности темы)
+        2. У каждого шага — понятное описание и подсказка
+        3. От простого к сложному
+        4. Практическая, решаемая задача; любой язык программирования
+        5. Тип шага (число): 0 DataGeneration, 1 Validation, 2 Processing, 3 Optimization, 4 Testing, 5 Documentation
+        6. Без обязательных фреймворков
+
+        ФОРМАТ ОТВЕТА (строго JSON, без markdown):
         {
             ""title"": ""Название задачи"",
             ""description"": ""Общее описание задачи"",
@@ -293,14 +356,14 @@ public sealed class ConstructorController : ControllerBase
                     ""order"": 1,
                     ""title"": ""Название шага"",
                     ""description"": ""Подробное описание что нужно сделать"",
-                    ""hint"": ""Подсказка для этого шага (без привязки к ЯП)"",
+                    ""hint"": ""Подсказка (без привязки к ЯП)"",
                     ""type"": 0
                 }
             ]
         }";
 
         var userPrompt = $"Создай задачу по программированию на тему '{request.Theme}' со сложностью '{request.Difficulty}'. " +
-                        "Задача должна быть практической и подходить для пошагового решения.";
+                        "Сформулируй описание дружелюбно: это материал для практики и чата с наставником, а не жёсткий контрольный.";
 
         var task = await SendRequestAsync<GeneratedTask>(systemPrompt, userPrompt);
         int retryCount = 0;
@@ -344,12 +407,13 @@ public sealed class ConstructorController : ControllerBase
                 // Сохраняем ответ ассистента
                 var assistantMessage = new ChatMessage(
                     "assistant",
-                    $"Сгенерирована задача: {task.Title}\n\n{task.Description}",
+                    $"Я подготовил для тебя задачу «{task.Title}». Это ориентир для практики — можешь идти по шагам или сначала пообщаться в чате и разобрать тему.\n\n{task.Description}",
                     null,
                     null,
                     null,
                     null,
-                    null);
+                    null,
+                    "task_generated");
 
                 chat.Messages.Add(assistantMessage);
 
@@ -404,24 +468,25 @@ public sealed class ConstructorController : ControllerBase
             $"{language.Name} {language.Version}",
             request.StepNumber,
             null,
-            null);
+            null,
+            "user_step_code");
 
         chat.Messages.Add(userMessage);
 
-        var systemPrompt = @"Ты - ИИ-наставник по программированию. Твоя задача - проверять решения пользователя по шагам и давать конструктивную обратную связь.
+        var systemPrompt = @"Ты — ИИ-наставник. Пользователь явно запросил проверку шага (кнопка в интерфейсе). Дай конструктивную обратную связь: поддерживающий тон, без уничижения.
 
-        Оценивай код по критериям:
-        1. Корректность решения для текущего шага
-        2. Соответствие условиям шага
-        3. Качество кода (читаемость, эффективность)
-        4. Потенциальные проблемы
+        Критерии:
+        1. Соответствие текущему шагу и его описанию
+        2. Корректность идеи и кода
+        3. Читаемость и аккуратность
+        4. Замечания по возможным ошибкам
 
         ФОРМАТ ОТВЕТА (строго JSON, без markdown):
         {
             ""isValid"": true/false,
-            ""message"": ""Подробный анализ решения"",
-            ""hint"": ""Если решение неверное - конкретная подсказка"",
-            ""suggestions"": [""Список предложений по улучшению""],
+            ""message"": ""Разбор и рекомендации"",
+            ""hint"": ""Если нужно доработать — конкретная подсказка"",
+            ""suggestions"": [""Идеи по улучшению""],
             ""isStepCompleted"": true/false
         }";
 
@@ -433,7 +498,7 @@ public sealed class ConstructorController : ControllerBase
         Код пользователя на {language.Name}:
         {request.Code}
 
-        Проверь решение для этого шага. Шаг считается выполненным, если код корректно реализует требуемую функциональность.";
+        Проверь решение для этого шага. Шаг считается выполненным (isStepCompleted), только если код по сути закрывает цель шага; при частичном решении isValid может быть true, но isStepCompleted — false.";
 
         var validateResponse = await SendRequestAsync<ValidateStepResponse>(systemPrompt, userPrompt);
 
@@ -473,7 +538,7 @@ public sealed class ConstructorController : ControllerBase
 
             var stepFeedback = new StepFeedback
             {
-                IsValid = validateResponse.IsValid,
+                IsValid = isStepCompleted,
                 Message = validateResponse.Message,
                 Hint = validateResponse.Hint ?? "",
                 Suggestions = validateResponse.Suggestions,
@@ -489,8 +554,9 @@ public sealed class ConstructorController : ControllerBase
                 request.Code,
                 $"{language.Name} {language.Version}",
                 request.StepNumber,
-                validateResponse.IsValid,
-                JsonSerializer.Serialize(stepFeedback, _options));
+                isStepCompleted,
+                JsonSerializer.Serialize(stepFeedback, _options),
+                "step_validation");
             
             chat.Messages.Add(assistantMessage);
         }
@@ -514,35 +580,207 @@ public sealed class ConstructorController : ControllerBase
     public async Task<ActionResult<TestResult>> RunCode(
         [FromBody] RunCodeRequest request)
     {
+        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
         var language = await _unitOfWork.ProgrammingLanguages.GetByIdAsync(request.LanguageId);
         if (language == null)
         {
             return NotFound("Язык программирования не найден");
         }
 
-        var result = await _codeRunner.RunTestsAsync(request.Code, language);
+        var result = await _codeRunner.RunTestsAsync(
+            request.Code,
+            language,
+            request.Stdin);
 
-        // Сохраняем результат выполнения в сообщение, если указан чат
-        if (request.ChatId != Guid.Empty && request.StepNumber.HasValue)
+        if (request.ChatId != Guid.Empty)
         {
-            var executionMessage = new ChatMessage(
-                "system",
-                $"stderr: {result.Stderr}\nstdout: {result.Stdout}",
-                request.Code,
-                $"{language.Name} {language.Version}",
-                request.StepNumber,
-                null,
-                null);
-
             var chat = (await _unitOfWork.TaskChats.GetAllAsync())
-                        .FirstOrDefault(c => c.Id == request.ChatId);
+                .FirstOrDefault(c => c.Id == request.ChatId && c.UserId == userId);
 
+            if (chat != null)
+            {
+                var stepLabel = request.StepNumber.HasValue
+                    ? $"шаг {request.StepNumber}"
+                    : "без привязки к шагу";
+                var executionMessage = new ChatMessage(
+                    "system",
+                    $"Запуск кода ({language.Name}, {stepLabel})",
+                    request.Code,
+                    $"{language.Name} {language.Version}",
+                    request.StepNumber,
+                    null,
+                    null,
+                    "code_run")
+                {
+                    ProgramStdin = request.Stdin,
+                    ProgramStdout = result.Stdout,
+                    ProgramStderr = result.Stderr
+                };
 
-            chat.Messages.Add(executionMessage);
-            await _unitOfWork.CommitAsync();
+                chat.Messages.Add(executionMessage);
+                chat.UpdatedAt = DateTime.UtcNow;
+                await _unitOfWork.CommitAsync();
+            }
         }
 
         return Ok(result);
+    }
+
+    private ChatDetailResponse BuildChatDetailResponse(TaskChat chat)
+    {
+        var messagesOrdered = chat.Messages.OrderBy(m => m.CreatedAt).ToList();
+        GeneratedTask? task = null;
+        if (!string.IsNullOrWhiteSpace(chat.TaskData))
+        {
+            task = JsonSerializer.Deserialize<GeneratedTask>(chat.TaskData, _options);
+            if (task != null)
+            {
+                task.StepFeedbacks = messagesOrdered
+                    .Where(m => m.Role == "assistant" && m.StepNumber.HasValue && m.Feedback != null)
+                    .OrderByDescending(m => m.CreatedAt)
+                    .DistinctBy(m => m.StepNumber!.Value)
+                    .ToDictionary(
+                        m => m.StepNumber!.Value,
+                        m => JsonSerializer.Deserialize<StepFeedback>(m.Feedback!, _options)!);
+            }
+        }
+
+        return new ChatDetailResponse
+        {
+            Chat = new ChatResponse
+            {
+                Id = chat.Id,
+                Title = chat.Title,
+                Theme = chat.Theme,
+                Difficulty = chat.Difficulty,
+                LastCompletedStep = chat.LastCompletedStep,
+                TotalSteps = task?.Steps.Count ?? 0,
+                UpdatedAt = chat.UpdatedAt,
+                IsArchived = chat.IsArchived
+            },
+            Task = task,
+            Messages = MapMessages(chat)
+        };
+    }
+
+    private static List<ChatMessageDto> MapMessages(TaskChat chat)
+    {
+        var ordered = chat.Messages.OrderBy(m => m.CreatedAt).ToList();
+        return ordered.Select((m, i) => MapMessageDto(m, i, chat.Id)).ToList();
+    }
+
+    private static ChatMessageDto MapMessageDto(ChatMessage m, int index, Guid chatId) => new()
+    {
+        Id = $"{chatId:N}_{index}",
+        ChatId = chatId.ToString(),
+        Role = m.Role,
+        Content = m.Content,
+        Code = m.Code,
+        Language = m.Language,
+        StepNumber = m.StepNumber,
+        IsValid = m.IsValid,
+        Feedback = m.Feedback,
+        MessageKind = m.MessageKind,
+        ProgramStdin = m.ProgramStdin,
+        ProgramStdout = m.ProgramStdout,
+        ProgramStderr = m.ProgramStderr,
+        CreatedAt = m.CreatedAt
+    };
+
+    private static List<object> BuildMistralChatMessages(TaskChat chat, string systemPrompt)
+    {
+        var list = new List<object>
+        {
+            new Dictionary<string, string>
+            {
+                ["role"] = "system",
+                ["content"] = systemPrompt
+            }
+        };
+
+        foreach (var m in chat.Messages.OrderBy(x => x.CreatedAt).TakeLast(24))
+        {
+            if (m.MessageKind == "code_run")
+            {
+                list.Add(new Dictionary<string, string>
+                {
+                    ["role"] = "user",
+                    ["content"] = TruncateForLlm(FormatCodeRunForLlm(m), 12_000)
+                });
+                continue;
+            }
+
+            if (m.Role == "user")
+            {
+                list.Add(new Dictionary<string, string>
+                {
+                    ["role"] = "user",
+                    ["content"] = TruncateForLlm(FormatUserMessageForChatHistory(m), 10_000)
+                });
+                continue;
+            }
+
+            if (m.Role == "assistant")
+            {
+                list.Add(new Dictionary<string, string>
+                {
+                    ["role"] = "assistant",
+                    ["content"] = TruncateForLlm(m.Content, 12_000)
+                });
+            }
+        }
+
+        return list;
+    }
+
+    private static string FormatUserMessageForChatHistory(ChatMessage m)
+    {
+        if (m.MessageKind == "user_step_code" && !string.IsNullOrEmpty(m.Code))
+            return $"{m.Content}\n\n--- код ---\n{m.Code}";
+        return m.Content;
+    }
+
+    private static string FormatCodeRunForLlm(ChatMessage m)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("[Запуск кода]");
+        if (!string.IsNullOrEmpty(m.Code))
+            sb.AppendLine("Код:\n" + m.Code);
+        if (!string.IsNullOrEmpty(m.ProgramStdin))
+            sb.AppendLine("Ввод (stdin):\n" + m.ProgramStdin);
+        if (m.ProgramStdout != null || m.ProgramStderr != null)
+        {
+            sb.AppendLine("stdout:\n" + (m.ProgramStdout ?? ""));
+            sb.AppendLine("stderr:\n" + (m.ProgramStderr ?? ""));
+        }
+        else
+            sb.AppendLine(m.Content);
+
+        return sb.ToString();
+    }
+
+    private static string TruncateForLlm(string s, int maxLen)
+    {
+        if (string.IsNullOrEmpty(s) || s.Length <= maxLen)
+            return s;
+        return s[..maxLen] + "\n… (обрезано)";
+    }
+
+    private async Task<string> SendChatCompletionMultiTurnAsync(IReadOnlyList<object> messagesPayload)
+    {
+        var request = new
+        {
+            model = "mistral-large-latest",
+            messages = messagesPayload,
+            temperature = 0.75
+        };
+
+        var response = await _mistral.PostAsJsonAsync("v1/chat/completions", request);
+        response.EnsureSuccessStatusCode();
+
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        return json.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString()!;
     }
 
     // ============== ХЕЛПЕРЫ ==============
